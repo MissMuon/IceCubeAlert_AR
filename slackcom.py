@@ -1,6 +1,7 @@
 import json
 import logging
 import slack
+import os
 
 
 def main():
@@ -39,7 +40,7 @@ def main():
             logging.exception(e)
             print(payload)
 
-    rtm_client = slack.RTMClient(token=cfg["token"])
+    rtm_client = slack.RTMClient(token=os.environ["SLACKTOKEN"])
     rtm_client.start()
 
 
