@@ -1,1 +1,6 @@
 slackclient==2.0.0
+aiohttp
+argparse
+sqlite3
+flask>=0.8
+flask_restful>=0.3.7
