@@ -36,12 +36,13 @@ def send_file(run, event):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--port", help="port for server", default=5000)
+    parser.add_argument("--host", help="for accept remote set to 0.0.0.0", default="128.0.0.1")
     args = parser.parse_args()
 
     api = Api(app)
     api.add_resource(Nevents, '/nevents')
     api.add_resource(LastEvents, '/lastevents/<nevents>')
-    app.run(port=args.port)
+    app.run(host=args.host, port=args.port)
 
 
 if __name__ == '__main__':
