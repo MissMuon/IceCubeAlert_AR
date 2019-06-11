@@ -1,20 +1,25 @@
 import json
 import logging
-import slack
 import os
+from time import sleep
+
+import slack
+from aiohttp.client_exceptions import ClientConnectorError
 
 
 def main():
+    n_retries = 0
+    retry_times = [1, 2, 3, 10, 30, 60, 60, 60, 600]
     with open("./configs/test.json") as fp:
         cfg = json.load(fp)
 
     @slack.RTMClient.run_on(event='message')
-    def say_hello(**payload):
+    def get_run_event(**payload):
         try:
             data = payload['data']
             print(data)
-            web_client = payload['web_client']
-            rtm_client = payload['rtm_client']
+            # web_client = payload['web_client']
+            # rtm_client = payload['rtm_client']
 
             if "text" in data and "channel" in data and "user" in data:
                 txt = data["text"]
@@ -41,7 +46,15 @@ def main():
             print(payload)
 
     rtm_client = slack.RTMClient(token=os.environ["SLACKTOKEN"])
-    rtm_client.start()
+    while True:
+        try:
+            rtm_client.start()
+        except ClientConnectorError as clexc:
+            sleep_time = retry_times[min(len(retry_times) - 1, n_retries)]
+            logging.info(f"Failed connection attempt ({clexc}). Trying to reconnect after {sleep_time}s")
+            print(f"Failed connection attempt. Trying to reconnect after {sleep_time}s")
+            n_retries += 1
+            sleep(sleep_time)
 
 
 if __name__ == "__main__":
