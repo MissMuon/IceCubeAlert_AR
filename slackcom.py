@@ -60,9 +60,9 @@ class Reader:
             self.conn.rollback()
 
     def process_data(self, data):
-        if "text" in data and "channel" in data and "user" in data:
+        if "text" in data and "channel" in data and ("username" in data or "user" in data):
             txt = data["text"]
-            user = data["user"]
+            user = data["username"] if "username" in data else data["user"]
             channel = data["channel"]
             alert_types = [word for word in self.cfg["listen_to_kw"] if word in txt]
 
