@@ -115,6 +115,9 @@ class Reader:
             except KeyboardInterrupt:
                 logging.info("Stopping after keyboard interrupt")
                 break
+            except Exception as exc:
+                logging.exception(exc)
+                logging.error("Unhandled exception: restarting reader client")
 
 
 if __name__ == "__main__":
