@@ -87,7 +87,6 @@ class Reader:
     def run(self):
         n_retries = 0
         retry_times = [1, 2, 3, 10, 30, 60, 60, 60, 600]
-        rtm_client = slack.RTMClient(token=os.environ["SLACKTOKEN"])
 
         @slack.RTMClient.run_on(event='message')
         def get_run_event(**payload):
@@ -101,11 +100,14 @@ class Reader:
 
             except Exception as e:
                 logging.exception(e)
-                print(payload)
+                logging.error(f"Failed payload: {payload}")
 
         while True:
             try:
+                print("Starting event reader")
+                rtm_client = slack.RTMClient(token=os.environ["SLACKTOKEN"])
                 rtm_client.start()
+                print("Event reader run ended")
             except ClientConnectorError as clexc:
                 sleep_time = retry_times[min(len(retry_times) - 1, n_retries)]
                 logging.info(f"Failed connection attempt ({clexc}). Trying to reconnect after {sleep_time}s")
@@ -117,7 +119,8 @@ class Reader:
                 break
             except Exception as exc:
                 logging.exception(exc)
-                logging.error("Unhandled exception: restarting reader client")
+                logging.error("Unhandled exception: restarting reader client after 1 sec")
+                sleep(1)
 
 
 if __name__ == "__main__":
@@ -131,8 +134,6 @@ if __name__ == "__main__":
         reader.new_db()
         print("...done")
     else:
-        print("Starting event reader")
         reader.run()
-        print("Event reader run ended")
     reader.end()
     exit(0)
