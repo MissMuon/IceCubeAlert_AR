@@ -11,26 +11,53 @@ from aiohttp.client_exceptions import ClientConnectorError
 
 
 class Reader:
-    def __init__(self):
+    def __init__(self, cfg):
         self.conn = sqlite3.connect('events.db', check_same_thread=False)
         self.cur = self.conn.cursor()
 
-        with open("./configs/test.json") as fp:
+        with open(cfg) as fp:
             self.cfg = json.load(fp)
 
     def end(self):
-        self.conn.commit()
+        try:
+            self.conn.commit()
+        except Exception as exc:
+            logging.exception(exc)
+            logging.error(exc)
+            self.conn.rollback()
         self.conn.close()
 
     def new_db(self):
         self.cur.execute(
-            '''CREATE TABLE if not exists events (timestamp DATETIME DEFAULT CURRENT_TIMESTAMP, run INTEGER, event INTEGER, alert_type TEXT)''')
+            '''CREATE TABLE if not exists events (timestamp DATETIME DEFAULT CURRENT_TIMESTAMP, 
+                                                  run INTEGER,
+                                                  event INTEGER,
+                                                  alert_type TEXT,
+                                                  event_time DATETIME,
+                                                  signal_prob FLOAT,
+                                                  far FLOAT,
+                                                  e_mu float,
+                                                  e_nu float,
+                                                  ra float,
+                                                  dec float,
+                                                  ang_err_50 float,
+                                                  ang_err_90 float,
+                                                  )''')
+        self.cur.execute("ALTER TABLE events ADD CONSTRAINT PK_ID PRIMARY KEY (run, event)")
         self.conn.commit()
 
     def insert_event(self, run, event, alert_type):
         sql = ''' INSERT INTO events(run, event, alert_type) VALUES(?,?,?) '''
         self.cur.execute(sql, (run, event, alert_type))
-        self.conn.commit()
+        try:
+            self.conn.commit()
+        except sqlite3.IntegrityError:
+            logging.error(f'(Run, event) already exists: {run}, {event}')
+            self.conn.rollback()
+        except Exception as exc:
+            logging.exception(exc)
+            logging.error("Error for: ", sql)
+            self.conn.rollback()
 
     def process_data(self, data):
         if "text" in data and "channel" in data and "user" in data:
@@ -85,16 +112,24 @@ class Reader:
                 print(f"Failed connection attempt. Trying to reconnect after {sleep_time}s")
                 n_retries += 1
                 sleep(sleep_time)
+            except KeyboardInterrupt:
+                logging.info("Stopping after keyboard interrupt")
+                break
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--createdb", help="initialise table", action="store_true")
+    parser.add_argument("--cfg", help="path to config file", default="./configs/test.json")
     args = parser.parse_args()
-    reader = Reader()
+    reader = Reader(args.cfg)
     if args.createdb:
+        print("Creating new DB...")
         reader.new_db()
+        print("...done")
     else:
+        print("Starting event reader")
         reader.run()
+        print("Event reader run ended")
     reader.end()
     exit(0)
