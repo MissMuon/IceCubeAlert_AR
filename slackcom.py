@@ -34,21 +34,14 @@ class Reader:
                                                   event INTEGER,
                                                   alert_type TEXT,
                                                   event_time DATETIME,
-                                                  signal_prob FLOAT,
-                                                  far FLOAT,
-                                                  e_mu float,
                                                   e_nu float,
-                                                  ra float,
-                                                  dec float,
-                                                  ang_err_50 float,
-                                                  ang_err_90 float,
                                                   )''')
         self.cur.execute("ALTER TABLE events ADD CONSTRAINT PK_ID PRIMARY KEY (run, event)")
         self.conn.commit()
 
-    def insert_event(self, run, event, alert_type):
-        sql = ''' INSERT INTO events(run, event, alert_type) VALUES(?,?,?) '''
-        self.cur.execute(sql, (run, event, alert_type))
+    def insert_event(self, run, event, alert_type, e_nu, event_time):
+        sql = ''' INSERT INTO events(run, event, alert_type, e_nu, event_time) VALUES(?,?,?,?,?) '''
+        self.cur.execute(sql, (run, event, alert_type, e_nu, event_time))
         try:
             self.conn.commit()
         except sqlite3.IntegrityError:
@@ -60,6 +53,28 @@ class Reader:
             self.conn.rollback()
 
     def process_data(self, data):
+        # {
+        # 'client_msg_id': '24a6209e-2662-4a9c-9ec9-6f4911d948fd',
+        # 'suppress_notification': False,
+        # 0 'text': "realtimeEvent found. selections: 'neutrino'.  Alerts: None Prescale applied: 20\n
+        # 1 realtimeEvent found. selections: 'neutrino'.  Alerts: gfu-gold\n
+        # 2 Alert Information\n
+        # 3 Event Time (UTC)\n
+        # 4 2019-06-13 19:54:18.125833\n
+        # 5 Run / Event\n
+        # 6 132684 / 5635104\n
+        # 7 Signal prob (%) /  FAR (per year)\n
+        # 8 60.793% / 0.719\n
+        # 9 Muon Energy / Neutrino Energy (TeV)\n
+        # 10 168.409 / 195.353\n
+        # 11 Event Direction (RA/DEC) (deg)\n
+        # 12 312.407 / 26.504",
+        # 'user': 'U03D5NE8C',
+        # 'team': 'T02KFGDCN',
+        # 'channel': 'DK9CRR9EK',
+        # 'event_ts': '1560582790.004400',
+        # 'ts': '1560582790.004400'
+        # }
         if "text" in data and "channel" in data and ("username" in data or "user" in data):
             txt = data["text"]
             user = data["username"] if "username" in data else data["user"]
@@ -69,15 +84,16 @@ class Reader:
             if len(alert_types) and any(word in channel for word in self.cfg["listen_on_channel"]) and \
                     any(word in user for word in self.cfg["listen_to_user"]):
                 print("Found valid alert")
-                txt2 = txt.split("Run / Event")[-1]
-                runinfo = txt2.splitlines()[1]
-                run = runinfo.split("/")[0].strip()
-                event = runinfo.split("/")[1].strip()
+                txt = txt.splitlines()
+                event_time = txt[4].strip()
+                run = txt[6].split("/")[0].strip()
+                event = txt[6].split("/")[1].strip()
+                e_nu = txt[10].split("/")[1].strip()
                 alert_type = alert_types[0]  # you can set order in self.cfg but double alerts not expected
-                print(alert_type, run, event)
+                print("Inserting:", alert_type, run, event, event_time, e_nu)
                 filename = f"{run}_{event}.txt"
                 shutil.copyfile("./example_event.txt", os.path.join("events", filename))
-                self.insert_event(run, event, alert_type)
+                self.insert_event(run, event, alert_type, e_nu, event_time)
             #     web_client.chat_postMessage(
             #         channel=channel_id,
             #         text=f"Hi <@{user}>!",

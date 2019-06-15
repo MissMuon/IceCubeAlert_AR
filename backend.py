@@ -22,7 +22,8 @@ class LastEvents(Resource):
     def get(self, nevents):
         conn = sqlite3.connect("events.db")
         cur = conn.cursor()
-        cur.execute("SELECT run, event, alert_type FROM events ORDER BY run DESC, event DESC LIMIT ?", [nevents])
+        cur.execute("SELECT run, event, alert_type, e_nu, event_time "
+                    "FROM events ORDER BY run DESC, event DESC LIMIT ?", [nevents])
         events = cur.fetchall()
         print(events)
         return {'events': events}
@@ -32,7 +33,8 @@ class LastEventsBeforeId(Resource):
     def get(self, nevents, run, event):
         conn = sqlite3.connect("events.db")
         cur = conn.cursor()
-        cur.execute("SELECT run, event, alert_type FROM events WHERE run < :run OR (run = :run AND event < :event) "
+        cur.execute("SELECT run, event, alert_type, e_nu, event_time "
+                    "FROM events WHERE run < :run OR (run = :run AND event < :event) "
                     "ORDER BY run DESC, event DESC "
                     "LIMIT :nevents",
                     {"run": run, "event": event, "nevents": nevents})
