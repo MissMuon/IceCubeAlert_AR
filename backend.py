@@ -65,11 +65,7 @@ def main():
     if args.cert and args.privkey:
         kwargs["ssl_context"] = (args.cert, args.privkey)
     print(f"Starting backend with options: {kwargs}")
-    while True:
-        try:
-            app.run(**kwargs)
-        except Exception as exc:
-            logging.exception(exc)
+    app.run(**kwargs)
 
 
 if __name__ == '__main__':

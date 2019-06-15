@@ -30,26 +30,26 @@ class Reader:
     def new_db(self):
         self.cur.execute(
             '''CREATE TABLE if not exists events (timestamp DATETIME DEFAULT CURRENT_TIMESTAMP, 
-                                                  run INTEGER,
-                                                  event INTEGER,
+                                                  run INTEGER NOT NULL,
+                                                  event INTEGER NOT NULL,
                                                   alert_type TEXT,
                                                   event_time DATETIME,
                                                   e_nu float,
+                                                  PRIMARY KEY (run,event)
                                                   )''')
-        self.cur.execute("ALTER TABLE events ADD CONSTRAINT PK_ID PRIMARY KEY (run, event)")
         self.conn.commit()
 
     def insert_event(self, run, event, alert_type, e_nu, event_time):
         sql = ''' INSERT INTO events(run, event, alert_type, e_nu, event_time) VALUES(?,?,?,?,?) '''
-        self.cur.execute(sql, (run, event, alert_type, e_nu, event_time))
         try:
+            self.cur.execute(sql, (run, event, alert_type, e_nu, event_time))
             self.conn.commit()
         except sqlite3.IntegrityError:
             logging.error(f'(Run, event) already exists: {run}, {event}')
             self.conn.rollback()
         except Exception as exc:
             logging.exception(exc)
-            logging.error("Error for: ", sql)
+            logging.error("DB Insertion error for: ", sql)
             self.conn.rollback()
 
     def process_data(self, data):
