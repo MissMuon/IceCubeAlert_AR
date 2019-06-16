@@ -1,19 +1,7 @@
-import sys, os
-from icecube import icetray, dataclasses, dataio
-from I3Tray import I3Tray
-
-runid = int(sys.argv[2])
-eventid = int(sys.argv[3])
-
-infiles = sys.argv[4:]
+from Bot_ConvertCSV import gen_hololens
 
 
-tray = I3Tray()
-ostream = dataio.I3File(sys.argv[1], 'w')
-
-tray.Add('I3Reader', filenamelist=infiles)
-
-def FindEvent(frame):
+def find_event(frame,runid,eventid,ostream,outcsv):
     if frame.Has("I3EventHeader")==0:
         header = frame["QI3EventHeader"]
     else:        
@@ -25,15 +13,12 @@ def FindEvent(frame):
     if header.event_id == eventid:
         ostream.push(frame)
         print "found event ",runid,eventid
+        
+        if frame.Has("InIceDSTPulses"):
+            gen_hololens(frame,outcsv)
 
     elif header.event_id > eventid:
         ostream.close()
-        tray.RequestSuspension()
+        #tray.RequestSuspension()
 
-tray.Add(FindEvent, Streams = [icetray.I3Frame.DAQ, icetray.I3Frame.Physics])
-
-tray.AddModule('TrashCan', '')                                                                                                                                                                                     
-
-tray.Execute()
-tray.Finish()
 
