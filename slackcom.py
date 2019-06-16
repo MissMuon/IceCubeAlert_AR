@@ -40,7 +40,7 @@ class Reader:
                                                   )''')
         self.conn.commit()
 
-    def insert_event(self, run, event, alert_type, e_nu, event_time):
+    def insert_event_into_db(self, run, event, alert_type, e_nu, event_time):
         sql = ''' INSERT INTO events(run, event, alert_type, e_nu, event_time) VALUES(?,?,?,?,?) '''
         try:
             self.cur.execute(sql, (run, event, alert_type, e_nu, event_time))
@@ -76,7 +76,31 @@ class Reader:
                 attachments=attachments
             )
 
-    def process_data(self, data):
+    def inform_channel(self, filepath, alert_type, run, event):
+        for ch in self.cfg["send_to_channel"]:
+            client = slack.WebClient(token=os.environ['SLACKTOKEN'])
+            response = client.files_upload(
+                channels=ch,
+                file=filepath)
+            if not response["ok"]:
+                logging.error(f"Could not upload file to channel {ch}:", response)
+                continue
+            try:
+                slack_path = response["file"]["url_private"]
+            except KeyError as exc:
+                logging.error("Cannot find url to image:", response)
+                raise exc
+
+            attachments = [{
+                "image_url": slack_path
+            }]
+            slack.WebClient(token=os.environ["SLACKTOKEN"]).chat_postMessage(
+                channel=ch,
+                text=f"New preview image for {alert_type} alert. Run / Event: {run} {event}. Check AR app.",
+                attachments=attachments
+            )
+
+    def process_slack_message_data(self, data):
         # {"type": "message",
         # "subtype": "bot_message",
         #  "text": "...",
@@ -92,7 +116,8 @@ class Reader:
             channel = data["channel"]
             alert_types = [word for word in self.cfg["listen_to_kw"] if word in txt]
 
-            if len(alert_types) and any(word in channel for word in self.cfg["listen_on_channel"]) and \
+            if "realtimeEvent" in txt and len(alert_types) and \
+                    any(word in channel for word in self.cfg["listen_on_channel"]) and \
                     any(word in user for word in self.cfg["listen_to_user"]):
                 print("Found valid alert")
                 fields = data["attachments"][0]["fields"]
@@ -101,22 +126,46 @@ class Reader:
                 event = fields[1]["value"].split("/")[1].strip()
                 e_nu = fields[3]["value"].split("/")[1].strip()
                 alert_type = alert_types[0]  # you can set order in self.cfg but double alerts not expected
-                filename = f"{run}_{event}.csv"
                 print("eventtime", event_time)
-                event_time_dt = datetime.strptime(event_time, '%Y-%m-%d %H:%M:%S.%f')
-                start = (event_time_dt + timedelta(seconds=-1)).strftime("%Y-%m-%d %H:%M:%S")
-                stop = (event_time_dt + timedelta(seconds=1)).strftime("%Y-%m-%d %H:%M:%S")
-                cmd = ["ssh", self.cfg["thinlink_user"] + "@" + self.cfg["thinlink_host"],
-                       "./download.sh", start, stop, run, event]
-                print("cmd", cmd)
-                status = subprocess.run(cmd, capture_output=True, check=True)
-                print("status", status)
-                cmd = ["scp", self.cfg["thinlink_user"] + "@" + self.cfg["thinlink_host"] + f":/tmp/{filename}",
-                       "./events/"]
-                status = subprocess.run(cmd, capture_output=True, check=True)
-                print("status", status)
-                print("Inserting:", alert_type, run, event, event_time, e_nu)
-                self.insert_event(run, event, alert_type, e_nu, event_time)
+                self.process_valid_event(alert_type, e_nu, run, event, event_time)
+
+    def process_valid_event(self, alert_type, e_nu, run, event, event_time):
+        # get file from south pole
+        event_time_dt = datetime.strptime(event_time, '%Y-%m-%d %H:%M:%S.%f')
+        start = (event_time_dt + timedelta(seconds=-1)).strftime("%Y-%m-%d %H:%M:%S")
+        stop = (event_time_dt + timedelta(seconds=1)).strftime("%Y-%m-%d %H:%M:%S")
+        cmd = ["ssh", self.cfg["thinlink_user"] + "@" + self.cfg["thinlink_host"],
+               os.path.join(self.cfg["thinlink_path"], "./download.sh"), start, stop, run, event]
+        print("cmd", cmd)
+        status = subprocess.run(cmd, capture_output=True, check=True)
+        print("status download", status)
+        filename = f"{run}_{event}.csv"
+        cmd = ["scp", self.cfg["thinlink_user"] + "@" + self.cfg["thinlink_host"] + f":/tmp/{filename}",
+               "./events/"]
+        status = subprocess.run(cmd, capture_output=True, check=True)
+        print("status cp", status)
+
+        # insert to db
+        print("Inserting event:", alert_type, run, event, event_time, e_nu)
+        self.insert_event_into_db(run, event, alert_type, e_nu, event_time)
+
+        # create preview image
+        cmd = ["ssh", self.cfg["thinlink_user"] + "@" + self.cfg["thinlink_host"],
+               os.path.join(self.cfg["thinlink_path"], "./create_screenshot.sh"), run, event]
+        print("cmd", cmd)
+        status = subprocess.run(cmd, capture_output=True, check=True)
+        print("status create screenshot", status)
+        filename = f"{run}_{event}.png"
+        cmd = ["scp", self.cfg["thinlink_user"] + "@" + self.cfg["thinlink_host"] + f":/tmp/{filename}",
+               "./events/"]
+        status = subprocess.run(cmd, capture_output=True, check=True)
+        print("status cp", status)
+
+        # send preview
+        try:
+            self.inform_channel(os.path.join("./events", filename), alert_type, run, event)
+        except Exception as exc:
+            logging.error("Could not inform channel", type(exc), exc)
 
     def run(self):
         n_retries = 0
@@ -130,7 +179,7 @@ class Reader:
                 # web_client = payload['web_client']
                 # rtm_client = payload['rtm_client']
 
-                self.process_data(data)
+                self.process_slack_message_data(data)
 
             except Exception as e:
                 logging.exception(e)
@@ -156,12 +205,27 @@ class Reader:
                 logging.error("Unhandled exception: restarting reader client after 1 sec")
                 sleep(1)
 
+    def remove_event(self, run, event):
+        sql = '''DELETE FROM events WHERE run=? AND event=?'''
+        try:
+            self.cur.execute(sql, (run, event))
+            self.conn.commit()
+        except Exception as exc:
+            logging.exception(exc)
+            logging.error("DB deletion error for: ", sql)
+            self.conn.rollback()
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--createdb", help="initialise table", action="store_true")
     parser.add_argument("--cfg", help="path to config file", default="./configs/test.json")
     parser.add_argument("--sendfake", help="send a fake msg for testing", action="store_true")
+    parser.add_argument("--manualInsertEvent", help="alert-type e_nu run event event_time "
+                                                    "(e.g. \"gfu-gold\" 32.9 132457 15 \"2019-04-20 01:30:05.162364\")",
+                        nargs='+')
+    parser.add_argument("--manualDeleteEvent", help="run event (e.g. 132457 15)",
+                        nargs='+')
     args = parser.parse_args()
     reader = Reader(args.cfg)
     if args.createdb:
@@ -169,7 +233,16 @@ if __name__ == "__main__":
         reader.new_db()
         print("...done")
     elif args.sendfake:
+        reader.cfg["send_to_channel"] = reader.cfg["send_to_channel_fake"]
         reader.send_fake_event()
+    elif args.manualInsertEvent:
+        reader.process_valid_event(args.manualInsertEvent[0],
+                                   args.manualInsertEvent[1],
+                                   args.manualInsertEvent[2],
+                                   args.manualInsertEvent[3],
+                                   args.manualInsertEvent[4])
+    elif args.manualDeleteEvent:
+        reader.remove_event(run=args.manualDeleteEvent[0], event=args.manualDeleteEvent[1])
     else:
         reader.run()
     reader.end()

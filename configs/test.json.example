@@ -1,9 +1,11 @@
 {
   "endpoint": "https://slack.com/api/",
   "listen_to_kw": ["ehe-gold", "hese-gold", "gfu-gold", "hese-bronze", "gfu-bronze"],
-  "listen_to_user": ["GFU-Test", "U03D5NE8C", "alert-bot"],
+  "listen_to_user": ["GFU-Test", "alert-bot", "bot"],
   "listen_on_channel": ["DK9CRR9EK", "G1CP37XV1"],
-  "send_to_channel": ["DK9CRR9EK"],
-  "thinlink_host": "FILLSERVERADD",
-  "thinlink_user": "FILLUSERNAME"
+  "send_to_channel": ["DK9CRR9EK", "G1CP37XV1"],
+  "send_to_channel_fake": ["DK9CRR9EK"],
+  "thinlink_host": "FillServerForIceTray",
+  "thinlink_user": "FillUserNameToConnect"
+  "thinlink_path": "FillPathWhereSteamshovelScriptsCanRun"
 }

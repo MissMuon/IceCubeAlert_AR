@@ -1,3 +1,10 @@
+#own
+configs/test.json
+configs/prod.json
+events.db
+**/#*#
+**/*~
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
