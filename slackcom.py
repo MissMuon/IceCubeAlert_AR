@@ -2,8 +2,9 @@ import argparse
 import json
 import logging
 import os
-import shutil
 import sqlite3
+import subprocess
+from datetime import datetime, timedelta
 from time import sleep
 
 import slack
@@ -90,9 +91,21 @@ class Reader:
                 event = txt[6].split("/")[1].strip()
                 e_nu = txt[10].split("/")[1].strip()
                 alert_type = alert_types[0]  # you can set order in self.cfg but double alerts not expected
+                filename = f"{run}_{event}.csv"
+                print("eventtime", event_time)
+                event_time_dt = datetime.strptime(x, '%m/%d/%Y %H:%M:%S.%f')
+                start = (event_time_dt + timedelta(seconds=-1)).strftime("%m/%d/%Y %H:%M:%S")
+                stop = (event_time_dt + timedelta(seconds=1)).strftime("%m/%d/%Y %H:%M:%S")
+                cmd = ["ssh", self.cfg["thinlink_user"] + "@" + {self.cfg["thinlink_host"]},
+                       "./download.sh", start, stop, run, event]
+                print("cmd", cmd)
+                status = subprocess.run(cmd, capture_output=True, check=True)
+                print("status", status)
+                cmd = ["scp", self.cfg["thinlink_user"] + "@" + {self.cfg["thinlink_host"]} + f":/tmp/{filename}",
+                       "./events/"]
+                status = subprocess.run(cmd, capture_output=True, check=True)
+                print("status", status)
                 print("Inserting:", alert_type, run, event, event_time, e_nu)
-                filename = f"{run}_{event}.txt"
-                shutil.copyfile("./example_event.txt", os.path.join("events", filename))
                 self.insert_event(run, event, alert_type, e_nu, event_time)
             #     web_client.chat_postMessage(
             #         channel=channel_id,

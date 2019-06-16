@@ -1,0 +1,8 @@
+{
+  "endpoint": "https://slack.com/api/",
+  "listen_to_kw": ["ehe-gold", "hese-gold", "gfu-gold", "hese-bronze", "gfu-bronze"],
+  "listen_to_user": ["GFU-Test", "U03D5NE8C", "alert-bot"],
+  "listen_on_channel": ["DK9CRR9EK", "G1CP37XV1"],
+  "thinlink_host": "FILLSERVERADD",
+  "thinlink_user": "FILLUSERNAME"
+}
