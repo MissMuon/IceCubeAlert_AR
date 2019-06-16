@@ -45,7 +45,7 @@ class LastEventsBeforeId(Resource):
 
 @app.route('/eventfile/<int:run>/<int:event>')
 def send_file(run, event):
-    filename = f"{int(run)}_{int(event)}.txt"
+    filename = f"{int(run)}_{int(event)}.csv"
     return send_from_directory('events', filename)
 
 

@@ -53,29 +53,39 @@ class Reader:
             logging.error("DB Insertion error for: ", sql)
             self.conn.rollback()
 
+    def send_fake_event(self):
+        """Send example event message to send_to_channel config for testing purposes"""
+        for ch in self.cfg["send_to_channel"]:
+            print("Sending to", self.cfg["send_to_channel"])
+            attachments = [
+                {"fallback": "realtimeEvent found. selections: 'neutrino'.  Alerts: gfu-gold",
+                 "title": "Alert Information",
+                 "id": 1, "color": "a30200",
+                 "fields": [{"title": "Event Time (UTC)", "value": "2019-04-22 05:59:42.071572", "short": True},
+                            {"title": "Run / Event", "value": "132465 / 3856549", "short": True},
+                            {"title": "Signal prob (%) /  FAR (per year)", "value": "51.348% / 1.183", "short": True},
+                            {"title": "Muon Energy / Neutrino Energy (TeV)", "value": "133.575 / 169.994",
+                             "short": True},
+                            {"title": "Event Direction (RA/DEC) (deg)", "value": "167.857 / 17.726", "short": True},
+                            {"title": "Angular error 50% (90%)", "value": "0.264 (0.679)", "short": True}],
+                 "mrkdwn_in": ["fields"]}]
+            text = "realtimeEvent found. selections: 'neutrino'.  Alerts: gfu-gold"
+            slack.WebClient(token=os.environ["SLACKTOKEN"]).chat_postMessage(
+                channel=ch,
+                text=text,
+                attachments=attachments
+            )
+
     def process_data(self, data):
-        # {
-        # 'client_msg_id': '24a6209e-2662-4a9c-9ec9-6f4911d948fd',
-        # 'suppress_notification': False,
-        # 0 'text': "realtimeEvent found. selections: 'neutrino'.  Alerts: None Prescale applied: 20\n
-        # 1 realtimeEvent found. selections: 'neutrino'.  Alerts: gfu-gold\n
-        # 2 Alert Information\n
-        # 3 Event Time (UTC)\n
-        # 4 2019-06-13 19:54:18.125833\n
-        # 5 Run / Event\n
-        # 6 132684 / 5635104\n
-        # 7 Signal prob (%) /  FAR (per year)\n
-        # 8 60.793% / 0.719\n
-        # 9 Muon Energy / Neutrino Energy (TeV)\n
-        # 10 168.409 / 195.353\n
-        # 11 Event Direction (RA/DEC) (deg)\n
-        # 12 312.407 / 26.504",
-        # 'user': 'U03D5NE8C',
-        # 'team': 'T02KFGDCN',
-        # 'channel': 'DK9CRR9EK',
-        # 'event_ts': '1560582790.004400',
-        # 'ts': '1560582790.004400'
-        # }
+        # {"type": "message",
+        # "subtype": "bot_message",
+        #  "text": "...",
+        #  "username": "alert-bot",
+        #  "icons": {"emoji": ":sparkler:",
+        #            "image_64": "https:\/\/a.slack-edge.com\/37d58\/img\/emoji_2017_12_06\/apple\/1f387.png"},
+        #  "bot_id": "B04VC4ZJF",
+        #  "attachments": [...]
+
         if "text" in data and "channel" in data and ("username" in data or "user" in data):
             txt = data["text"]
             user = data["username"] if "username" in data else data["user"]
@@ -85,33 +95,28 @@ class Reader:
             if len(alert_types) and any(word in channel for word in self.cfg["listen_on_channel"]) and \
                     any(word in user for word in self.cfg["listen_to_user"]):
                 print("Found valid alert")
-                txt = txt.splitlines()
-                event_time = txt[4].strip()
-                run = txt[6].split("/")[0].strip()
-                event = txt[6].split("/")[1].strip()
-                e_nu = txt[10].split("/")[1].strip()
+                fields = data["attachments"][0]["fields"]
+                event_time = fields[0]["value"]
+                run = fields[1]["value"].split("/")[0].strip()
+                event = fields[1]["value"].split("/")[1].strip()
+                e_nu = fields[3]["value"].split("/")[1].strip()
                 alert_type = alert_types[0]  # you can set order in self.cfg but double alerts not expected
                 filename = f"{run}_{event}.csv"
                 print("eventtime", event_time)
-                event_time_dt = datetime.strptime(x, '%m/%d/%Y %H:%M:%S.%f')
-                start = (event_time_dt + timedelta(seconds=-1)).strftime("%m/%d/%Y %H:%M:%S")
-                stop = (event_time_dt + timedelta(seconds=1)).strftime("%m/%d/%Y %H:%M:%S")
-                cmd = ["ssh", self.cfg["thinlink_user"] + "@" + {self.cfg["thinlink_host"]},
+                event_time_dt = datetime.strptime(event_time, '%Y-%m-%d %H:%M:%S.%f')
+                start = (event_time_dt + timedelta(seconds=-1)).strftime("%Y-%m-%d %H:%M:%S")
+                stop = (event_time_dt + timedelta(seconds=1)).strftime("%Y-%m-%d %H:%M:%S")
+                cmd = ["ssh", self.cfg["thinlink_user"] + "@" + self.cfg["thinlink_host"],
                        "./download.sh", start, stop, run, event]
                 print("cmd", cmd)
                 status = subprocess.run(cmd, capture_output=True, check=True)
                 print("status", status)
-                cmd = ["scp", self.cfg["thinlink_user"] + "@" + {self.cfg["thinlink_host"]} + f":/tmp/{filename}",
+                cmd = ["scp", self.cfg["thinlink_user"] + "@" + self.cfg["thinlink_host"] + f":/tmp/{filename}",
                        "./events/"]
                 status = subprocess.run(cmd, capture_output=True, check=True)
                 print("status", status)
                 print("Inserting:", alert_type, run, event, event_time, e_nu)
                 self.insert_event(run, event, alert_type, e_nu, event_time)
-            #     web_client.chat_postMessage(
-            #         channel=channel_id,
-            #         text=f"Hi <@{user}>!",
-            #         thread_ts=thread_ts
-            #     )
 
     def run(self):
         n_retries = 0
@@ -156,12 +161,15 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--createdb", help="initialise table", action="store_true")
     parser.add_argument("--cfg", help="path to config file", default="./configs/test.json")
+    parser.add_argument("--sendfake", help="send a fake msg for testing", action="store_true")
     args = parser.parse_args()
     reader = Reader(args.cfg)
     if args.createdb:
         print("Creating new DB...")
         reader.new_db()
         print("...done")
+    elif args.sendfake:
+        reader.send_fake_event()
     else:
         reader.run()
     reader.end()
