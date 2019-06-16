@@ -120,9 +120,12 @@ else:
     header = frame['I3EventHeader']
 run, event = header.run_id,header.event_id
 from os.path import join
-outdir = "/home/lulu/Software/combo/build_realtime/realtime_tools/resources/scripts/IceCubeAlert_AR/Bot_Steamshovel_Screenshots/"
-filename = join(outdir,"%i-%i.png" %(run,event))
+#outdir = "/home/lulu/Software/combo/build_realtime/realtime_tools/resources/scripts/IceCubeAlert_AR/Bot_Steamshovel_Screenshots/"
+outdir = "/tmp/"
+filename = join(outdir,"%i_%i.png" %(run,event))
 window.gl.screenshotDpi(300,filename)
-del _dumpScenario
+#del _dumpScenario
 app.quit
+#import os
+#os._exit(0)
 exit()
