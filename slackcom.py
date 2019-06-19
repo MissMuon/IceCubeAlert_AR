@@ -217,6 +217,8 @@ class Reader:
 
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.DEBUG, filename='./slackcom.log', filemode='w',
+                        format='%(name)s - %(levelname)s - %(message)s')
     parser = argparse.ArgumentParser()
     parser.add_argument("--createdb", help="initialise table", action="store_true")
     parser.add_argument("--cfg", help="path to config file", default="./configs/test.json")
