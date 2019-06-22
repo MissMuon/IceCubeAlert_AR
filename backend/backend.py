@@ -10,7 +10,7 @@ app = Flask(__name__, static_url_path='')
 
 class Nevents(Resource):
     def get(self):
-        conn = sqlite3.connect("events.db")
+        conn = sqlite3.connect("../events.db")
         cur = conn.cursor()
         cur.execute("SELECT COUNT(*) FROM events")
         n_events = cur.fetchone()[0]
@@ -48,6 +48,10 @@ def send_file(run, event):
     filename = f"{int(run)}_{int(event)}.csv"
     return send_from_directory('events', filename)
 
+api = Api(app)
+api.add_resource(Nevents, '/nevents')
+api.add_resource(LastEvents, '/lastevents/<int:nevents>')
+api.add_resource(LastEventsBeforeId, '/lasteventsbeforeid/<int:nevents>/<int:run>/<int:event>')
 
 def main():
     parser = argparse.ArgumentParser()
@@ -57,10 +61,6 @@ def main():
     parser.add_argument("--privkey", help="e.g. privkey.pem", default=None)
     args = parser.parse_args()
 
-    api = Api(app)
-    api.add_resource(Nevents, '/nevents')
-    api.add_resource(LastEvents, '/lastevents/<int:nevents>')
-    api.add_resource(LastEventsBeforeId, '/lasteventsbeforeid/<int:nevents>/<int:run>/<int:event>')
     kwargs = {"host": args.host, "port": args.port}
     if args.cert and args.privkey:
         kwargs["ssl_context"] = (args.cert, args.privkey)
