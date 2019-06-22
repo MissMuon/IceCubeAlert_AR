@@ -3,3 +3,4 @@ aiohttp
 argparse
 flask>=0.8
 flask_restful>=0.3.7
+firebase-admin

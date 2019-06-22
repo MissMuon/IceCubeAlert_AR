@@ -3,9 +3,10 @@
   "listen_to_kw": ["ehe-gold", "hese-gold", "gfu-gold", "hese-bronze", "gfu-bronze"],
   "listen_to_user": ["GFU-Test", "alert-bot", "bot"],
   "listen_on_channel": ["DK9CRR9EK", "G1CP37XV1"],
-  "send_to_channel": ["DK9CRR9EK", "G1CP37XV1"],
+  "send_to_channel": ["DK9CRR9EK"],
   "send_to_channel_fake": ["DK9CRR9EK"],
   "thinlink_host": "FillServerForIceTray",
   "thinlink_user": "FillUserNameToConnect"
-  "thinlink_path": "FillPathWhereSteamshovelScriptsCanRun"
+  "thinlink_path": "FillPathWhereSteamshovelScriptsCanRun",
+  "firebase_topic": "/topics/ar"
 }

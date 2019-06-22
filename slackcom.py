@@ -10,6 +10,8 @@ from time import sleep
 import slack
 from aiohttp.client_exceptions import ClientConnectorError
 
+from firebasemsg import inform_firebase
+
 
 class Reader:
     def __init__(self, cfg):
@@ -166,6 +168,12 @@ class Reader:
             self.inform_channel(os.path.join("./events", filename), alert_type, run, event)
         except Exception as exc:
             logging.error("Could not inform channel", type(exc), exc)
+
+        # send firebase
+        try:
+            inform_firebase(run, event, alert_type, event_time, e_nu, topic=self.cfg["firebase_topic"])
+        except Exception as exc:
+            logging.error("Could not inform firebase", type(exc), exc)
 
     def run(self):
         n_retries = 0
