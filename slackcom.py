@@ -181,6 +181,7 @@ class Reader:
 
         @slack.RTMClient.run_on(event='message')
         def get_run_event(**payload):
+            logging.info("Enter per message")
             try:
                 data = payload['data']
                 print(data)
@@ -192,6 +193,8 @@ class Reader:
             except Exception as e:
                 logging.exception(e)
                 logging.error(f"Failed payload: {payload}")
+                raise e
+            logging.info("Exit per message")
 
         while True:
             try:
@@ -205,9 +208,10 @@ class Reader:
                 print(f"Failed connection attempt. Trying to reconnect after {sleep_time}s")
                 n_retries += 1
                 sleep(sleep_time)
-            except KeyboardInterrupt:
-                logging.info("Stopping after keyboard interrupt")
-                break
+            except KeyboardInterrupt as e:
+                logging.warning("Stopping after keyboard interrupt")
+                raise e
+                #break
             except Exception as exc:
                 logging.exception(exc)
                 logging.error("Unhandled exception: restarting reader client after 1 sec")
@@ -226,7 +230,8 @@ class Reader:
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG, filename='./slackcom.log', filemode='w',
-                        format='%(name)s - %(levelname)s - %(message)s')
+                        format='%(asctime)s %(name)s - %(levelname)s - %(message)s',
+                        datefmt='%Y-%m-%d %H:%M:%S')
     parser = argparse.ArgumentParser()
     parser.add_argument("--createdb", help="initialise table", action="store_true")
     parser.add_argument("--cfg", help="path to config file", default="./configs/test.json")
