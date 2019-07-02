@@ -37,7 +37,9 @@ class Reader:
                                                   event INTEGER NOT NULL,
                                                   alert_type TEXT,
                                                   event_time DATETIME,
-                                                  e_nu float,
+                                                  e_nu FLOAT,
+                                                  nickname TEXT,
+                                                  comment TEXT,
                                                   PRIMARY KEY (run,event)
                                                   )''')
         self.conn.commit()
@@ -227,6 +229,16 @@ class Reader:
             logging.error("DB deletion error for: ", sql)
             self.conn.rollback()
 
+    def add_commnt(self, run, event, comment):
+        sql = '''UPDATE events SET comment=? WHERE run=? AND event=?'''
+        try:
+            self.cur.execute(sql, (comment, run, event))
+            self.conn.commit()
+        except Exception as exc:
+            logging.exception(exc)
+            logging.error("DB comment update error for: ", sql)
+            self.conn.rollback()
+
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG, filename='./slackcom.log', filemode='w',
@@ -240,6 +252,8 @@ if __name__ == "__main__":
                                                     "(e.g. \"gfu-gold\" 32.9 132457 15 \"2019-04-20 01:30:05.162364\")",
                         nargs='+')
     parser.add_argument("--manualDeleteEvent", help="run event (e.g. 132457 15)",
+                        nargs='+')
+    parser.add_argument("--manualAddComment", help="run event comment (e.g. 132457 15 \"foo\")",
                         nargs='+')
     args = parser.parse_args()
     reader = Reader(args.cfg)
@@ -258,6 +272,9 @@ if __name__ == "__main__":
                                    args.manualInsertEvent[4])
     elif args.manualDeleteEvent:
         reader.remove_event(run=args.manualDeleteEvent[0], event=args.manualDeleteEvent[1])
+    elif args.manualAddComment:
+        reader.add_commnt(run=args.manualDeleteEvent[0], event=args.manualDeleteEvent[1],
+                          comment=args.manualDeleteEvent[2])
     else:
         reader.run()
     reader.end()
