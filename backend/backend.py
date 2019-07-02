@@ -6,10 +6,11 @@ from flask_restful import Resource, Api
 
 app = Flask(__name__, static_url_path='')
 
+path_to_db = "../events.db"
 
 class Nevents(Resource):
     def get(self):
-        conn = sqlite3.connect("../events.db")
+        conn = sqlite3.connect(path_to_db)
         cur = conn.cursor()
         cur.execute("SELECT COUNT(*) FROM events")
         n_events = cur.fetchone()[0]
@@ -19,7 +20,7 @@ class Nevents(Resource):
 
 class LastEvents(Resource):
     def get(self, nevents):
-        conn = sqlite3.connect("events.db")
+        conn = sqlite3.connect(path_to_db)
         cur = conn.cursor()
         cur.execute("SELECT run, event, alert_type, e_nu, event_time, nickname "
                     "FROM events ORDER BY run DESC, event DESC LIMIT ?", [nevents])
@@ -30,7 +31,7 @@ class LastEvents(Resource):
 
 class LastEventsBeforeId(Resource):
     def get(self, nevents, run, event):
-        conn = sqlite3.connect("events.db")
+        conn = sqlite3.connect(path_to_db)
         cur = conn.cursor()
         cur.execute("SELECT run, event, alert_type, e_nu, event_time, nickname "
                     "FROM events WHERE run < :run OR (run = :run AND event < :event) "
@@ -44,12 +45,14 @@ class LastEventsBeforeId(Resource):
 
 class Comment(Resource):
     def get(self, run, event):
-        conn = sqlite3.connect("events.db")
+        conn = sqlite3.connect(path_to_db)
         cur = conn.cursor()
         cur.execute("SELECT comment "
                     "FROM events WHERE run = :run AND event = :event ",
                     {"run": run, "event": event})
-        events = cur.fetchone()[0]
+        events = cur.fetchone()
+        if events:
+            events = events[0]
         print(events)
         return {'comment': events}
 
@@ -64,7 +67,7 @@ api = Api(app)
 api.add_resource(Nevents, '/nevents')
 api.add_resource(LastEvents, '/lastevents/<int:nevents>')
 api.add_resource(LastEventsBeforeId, '/lasteventsbeforeid/<int:nevents>/<int:run>/<int:event>')
-api.add_resource(Comment, '/comments/<int:run>/<int:event>')
+api.add_resource(Comment, '/comment/<int:run>/<int:event>')
 
 
 def main():
