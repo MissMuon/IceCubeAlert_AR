@@ -1,5 +1,4 @@
 import argparse
-import logging
 import sqlite3
 
 from flask import Flask, send_from_directory
@@ -22,7 +21,7 @@ class LastEvents(Resource):
     def get(self, nevents):
         conn = sqlite3.connect("events.db")
         cur = conn.cursor()
-        cur.execute("SELECT run, event, alert_type, e_nu, event_time "
+        cur.execute("SELECT run, event, alert_type, e_nu, event_time, nickname "
                     "FROM events ORDER BY run DESC, event DESC LIMIT ?", [nevents])
         events = cur.fetchall()
         print(events)
@@ -33,7 +32,7 @@ class LastEventsBeforeId(Resource):
     def get(self, nevents, run, event):
         conn = sqlite3.connect("events.db")
         cur = conn.cursor()
-        cur.execute("SELECT run, event, alert_type, e_nu, event_time "
+        cur.execute("SELECT run, event, alert_type, e_nu, event_time, nickname "
                     "FROM events WHERE run < :run OR (run = :run AND event < :event) "
                     "ORDER BY run DESC, event DESC "
                     "LIMIT :nevents",
@@ -43,15 +42,30 @@ class LastEventsBeforeId(Resource):
         return {'events': events}
 
 
+class Comment(Resource):
+    def get(self, run, event):
+        conn = sqlite3.connect("events.db")
+        cur = conn.cursor()
+        cur.execute("SELECT comment "
+                    "FROM events WHERE run = :run AND event = :event ",
+                    {"run": run, "event": event})
+        events = cur.fetchone()[0]
+        print(events)
+        return {'comment': events}
+
+
 @app.route('/eventfile/<int:run>/<int:event>')
 def send_file(run, event):
     filename = f"{int(run)}_{int(event)}.csv"
     return send_from_directory('events', filename)
 
+
 api = Api(app)
 api.add_resource(Nevents, '/nevents')
 api.add_resource(LastEvents, '/lastevents/<int:nevents>')
 api.add_resource(LastEventsBeforeId, '/lasteventsbeforeid/<int:nevents>/<int:run>/<int:event>')
+api.add_resource(Comment, '/comments/<int:run>/<int:event>')
+
 
 def main():
     parser = argparse.ArgumentParser()

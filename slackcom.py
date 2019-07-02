@@ -273,8 +273,8 @@ if __name__ == "__main__":
     elif args.manualDeleteEvent:
         reader.remove_event(run=args.manualDeleteEvent[0], event=args.manualDeleteEvent[1])
     elif args.manualAddComment:
-        reader.add_commnt(run=args.manualDeleteEvent[0], event=args.manualDeleteEvent[1],
-                          comment=args.manualDeleteEvent[2])
+        reader.add_commnt(run=args.manualAddComment[0], event=args.manualAddComment[1],
+                          comment=args.manualAddComment[2])
     else:
         reader.run()
     reader.end()
