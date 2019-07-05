@@ -4,6 +4,8 @@ configs/prod.json
 events.db
 **/#*#
 **/*~
+events/*.csv
+events/*.png
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

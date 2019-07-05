@@ -8,5 +8,5 @@
   "thinlink_host": "FillServerForIceTray",
   "thinlink_user": "FillUserNameToConnect"
   "thinlink_path": "FillPathWhereSteamshovelScriptsCanRun",
-  "firebase_topic": "/topics/ar"
+  "firebase_topic": "/topics/ar_test"
 }

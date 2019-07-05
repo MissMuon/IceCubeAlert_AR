@@ -9,7 +9,6 @@ from time import sleep
 
 import slack
 from aiohttp.client_exceptions import ClientConnectorError
-
 from firebasemsg import inform_firebase
 
 
@@ -52,10 +51,12 @@ class Reader:
         except sqlite3.IntegrityError:
             logging.error(f'(Run, event) already exists: {run}, {event}')
             self.conn.rollback()
+            raise StopIteration
         except Exception as exc:
             logging.exception(exc)
             logging.error("DB Insertion error for: ", sql)
             self.conn.rollback()
+            raise StopIteration
 
     def send_fake_event(self):
         """Send example event message to send_to_channel config for testing purposes"""
@@ -80,24 +81,26 @@ class Reader:
                 attachments=attachments
             )
 
-    def inform_channel(self, filepath, alert_type, run, event):
+    def inform_channel(self, filepath, alert_type, run, event, has_screenshot):
         for ch in self.cfg["send_to_channel"]:
             client = slack.WebClient(token=os.environ['SLACKTOKEN'])
-            response = client.files_upload(
-                channels=ch,
-                file=filepath)
-            if not response["ok"]:
-                logging.error(f"Could not upload file to channel {ch}:", response)
-                continue
-            try:
-                slack_path = response["file"]["url_private"]
-            except KeyError as exc:
-                logging.error("Cannot find url to image:", response)
-                raise exc
+            attachments = []
+            if has_screenshot:
+                response = client.files_upload(
+                    channels=ch,
+                    file=filepath)
+                if response["ok"]:
+                    try:
+                        slack_path = response["file"]["url_private"]
+                    except KeyError as exc:
+                        logging.error("Cannot find url to image:", response)
+                        raise exc
 
-            attachments = [{
-                "image_url": slack_path
-            }]
+                    attachments = [{
+                        "image_url": slack_path
+                    }]
+                else:
+                    logging.error(f"Could not upload file to channel {ch}:", response)
             slack.WebClient(token=os.environ["SLACKTOKEN"]).chat_postMessage(
                 channel=ch,
                 text=f"New preview image for {alert_type} alert. Run / Event: {run} {event}. Check AR app.",
@@ -123,7 +126,7 @@ class Reader:
             if "realtimeEvent" in txt and len(alert_types) and \
                     any(word in channel for word in self.cfg["listen_on_channel"]) and \
                     any(word in user for word in self.cfg["listen_to_user"]):
-                print("Found valid alert")
+                logging.info("Found valid alert")
                 fields = data["attachments"][0]["fields"]
                 event_time = fields[0]["value"]
                 run = fields[1]["value"].split("/")[0].strip()
@@ -142,32 +145,41 @@ class Reader:
                os.path.join(self.cfg["thinlink_path"], "./download.sh"), start, stop, run, event]
         print("cmd", cmd)
         status = subprocess.run(cmd, capture_output=True, check=True)
-        print("status download", status)
+        logging.debug(f"status download: {status}")
         filename = f"{run}_{event}.csv"
         cmd = ["scp", self.cfg["thinlink_user"] + "@" + self.cfg["thinlink_host"] + f":/tmp/{filename}",
                "./events/"]
         status = subprocess.run(cmd, capture_output=True, check=True)
-        print("status cp", status)
+        logging.debug(f"status cp csv: {status}")
 
         # insert to db
-        print("Inserting event:", alert_type, run, event, event_time, e_nu)
-        self.insert_event_into_db(run, event, alert_type, e_nu, event_time)
+        logging.info(f"Inserting event: {alert_type}, {run}, {event}, {event_time}, {e_nu}")
+        try:
+            self.insert_event_into_db(run, event, alert_type, e_nu, event_time)
+        except StopIteration:
+            logging.warning("Stopping further processing of valid event")
+            return
 
         # create preview image
         cmd = ["ssh", self.cfg["thinlink_user"] + "@" + self.cfg["thinlink_host"],
                os.path.join(self.cfg["thinlink_path"], "./create_screenshot.sh"), run, event]
         print("cmd", cmd)
-        status = subprocess.run(cmd, capture_output=True, check=True)
-        print("status create screenshot", status)
-        filename = f"{run}_{event}.png"
-        cmd = ["scp", self.cfg["thinlink_user"] + "@" + self.cfg["thinlink_host"] + f":/tmp/{filename}",
-               "./events/"]
-        status = subprocess.run(cmd, capture_output=True, check=True)
-        print("status cp", status)
+        has_screenshot = True
+        try:
+            status = subprocess.run(cmd, capture_output=True, check=True)
+            logging.debug(f"status create screenshot: {status}")
+            filename = f"{run}_{event}.png"
+            cmd = ["scp", self.cfg["thinlink_user"] + "@" + self.cfg["thinlink_host"] + f":/tmp/{filename}",
+                   "./events/"]
+            status = subprocess.run(cmd, capture_output=True, check=True)
+            logging.debug(f"status scp screenshot: {status}")
+        except CalledProcessError as subprocexc:
+            logging.exception(subprocexc)
+            has_screenshot = False
 
         # send preview
         try:
-            self.inform_channel(os.path.join("./events", filename), alert_type, run, event)
+            self.inform_channel(os.path.join("./events", filename), alert_type, run, event, has_screenshot)
         except Exception as exc:
             logging.error("Could not inform channel", type(exc), exc)
 
@@ -192,10 +204,10 @@ class Reader:
 
                 self.process_slack_message_data(data)
 
-            except Exception as e:
-                logging.exception(e)
+            except Exception as rtmexc:
+                logging.exception(rtmexc)
                 logging.error(f"Failed payload: {payload}")
-                raise e
+                raise rtmexc
             logging.info("Exit per message")
 
         while True:
@@ -206,14 +218,14 @@ class Reader:
                 print("Event reader run ended")
             except ClientConnectorError as clexc:
                 sleep_time = retry_times[min(len(retry_times) - 1, n_retries)]
-                logging.info(f"Failed connection attempt ({clexc}). Trying to reconnect after {sleep_time}s")
+                logging.warning(f"Failed connection attempt ({clexc}). Trying to reconnect after {sleep_time}s")
                 print(f"Failed connection attempt. Trying to reconnect after {sleep_time}s")
                 n_retries += 1
                 sleep(sleep_time)
             except KeyboardInterrupt as e:
                 logging.warning("Stopping after keyboard interrupt")
                 raise e
-                #break
+                # break
             except Exception as exc:
                 logging.exception(exc)
                 logging.error("Unhandled exception: restarting reader client after 1 sec")

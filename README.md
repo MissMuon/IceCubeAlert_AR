@@ -13,8 +13,10 @@ sudo apt install sqlite3
 pip install -r requirements.txt
 cp configs/test.json.example configs/test.json
 ```
+* Copy the config file .example to .json
 * Now edit the config file. At least point the server to right address
 * Set environment variable `SLACKTOKEN` to the token you get for your bot
+* Copy the firebase token to `./configs`. File looks like `icecubear-2xxx4-firebase-adminsdk-xxx.json`
 
 ## Running backend
 ```
