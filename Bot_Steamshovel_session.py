@@ -88,20 +88,47 @@ def _dumpScenario():
         logging.log_error( e.__class__.__name__ + " occured while loading saved state of TextSummary: " + str(e) )
     except:
         logging.log_error( "Unknown error occured while loading saved state of TextSummary: " + str(e) )
-    window.gl.setCameraPivot(7.17023658752, 36.1024436951, -63.2644119263)
-    window.gl.setCameraLoc(172.551498413, -1770.15148926, 500.825744629)
-    window.gl.setCameraOrientation(0.995834589005, 0.0911788865924, -4.71844785466e-16)
+ 
+    window.gl.backgroundColor = PyQColor(255,255,255,255)
     window.gl.cameraLock = False
     window.gl.perspectiveView = True
-    window.gl.backgroundColor = PyQColor(255,255,255,255)
-    window.timeline.rangeFinder = "SplitUncleanedInIcePulses"
-    window.frame_filter.code = ""
-    window.activeView = 0
-_dumpScenario()
+
 #app.files.openLocalFile("./GCD_BigBird.i3")
-app.files.advanceFrame(3)
+app.files.advanceFrame(5)
 #app.files.openLocalFile(options.input)
-app.files.advanceFrame(2)
+#app.files.advanceFrame(2)
+_dumpScenario()
+#window.gl.setCameraPivot(7.17023658752, 36.1024436951, -63.2644119263)
+#window.gl.setCameraLoc(172.551498413, -1770.15148926, 500.825744629)
+#window.gl.setCameraOrientation(0.995834589005, 0.0911788865924, -4.71844785466e-16)
+
+from icecube import phys_services
+from icecube import dataclasses
+from icecube.icetray import I3Units
+import numpy as np
+
+cylinder = phys_services.Cylinder(1000, 625)
+bestfit = frame["OnlineL2_SplineMPE"].dir
+zenith = bestfit.zenith*180./3.14
+azimuth = bestfit.azimuth*180./3.14
+x = frame["OnlineL2_SplineMPE"].pos.x
+y = frame["OnlineL2_SplineMPE"].pos.y
+z = frame["OnlineL2_SplineMPE"].pos.z
+adir = dataclasses.I3Direction(zenith*I3Units.deg, azimuth*I3Units.deg)
+vtx =  dataclasses.I3Position(x*I3Units.m, y*I3Units.m, z*I3Units.m)
+intercept = cylinder.intersection(vtx, adir)
+
+centre = dataclasses.I3Position(((intercept.second*adir + vtx).x+(intercept.first*adir + vtx).x)/2.,((intercept.second*adir + vtx).y+(intercept.first*adir + vtx).y)/2.,((intercept.second*adir + vtx).z+(intercept.first*adir + vtx).z)/2.)
+temp = centre.cross(bestfit)+centre*4.5
+temp.z = 500
+#window.gl.setCameraPivot(7.17023658752, 36.1024436951, -63.2644119263)
+window.gl.setCameraOrientation(1, 0, 0)
+window.gl.setCameraLoc(temp)
+window.gl.setCameraPivot(0,0,0)
+
+window.timeline.rangeFinder = "SplitUncleanedInIcePulses"
+window.frame_filter.code = ""
+window.activeView = 0
 pulses = frame["SplitUncleanedInIcePulses"]
 pulses = pulses.apply(frame)
 qmax = -1
@@ -114,6 +141,17 @@ for key,val in pulses.items():
         tmax = val[0].time
 window.timeline.maxTime = int(tmax+5000.)
 window.timeline.minTime = int(tmax-1000.)
+
+reset = window.gl.cameraLoc
+if np.absolute(reset.x)>np.absolute(reset.y):    
+    scaling = 1770./np.absolute(reset.x)
+else:
+    scaling = 1770./np.absolute(reset.y)
+window.gl.setCameraLoc(reset.x*scaling,reset.y*scaling,reset.z)
+
+#print reset
+#print temp
+
 if frame.Has("I3EventHeader")==0:
     header = frame["QI3EventHeader"]
 else:   
@@ -123,7 +161,10 @@ from os.path import join
 #outdir = "/home/lulu/Software/combo/build_realtime/realtime_tools/resources/scripts/IceCubeAlert_AR/Bot_Steamshovel_Screenshots/"
 outdir = "/tmp/"
 filename = join(outdir,"%i_%i.png" %(run,event))
+
 window.gl.screenshotDpi(300,filename)
+
+
 #del _dumpScenario
 app.quit
 #import os
