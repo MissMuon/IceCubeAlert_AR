@@ -166,7 +166,7 @@ window.gl.screenshotDpi(300,filename)
 
 
 #del _dumpScenario
-app.quit
+#app.quit
 #import os
 #os._exit(0)
-exit()
+#exit()
