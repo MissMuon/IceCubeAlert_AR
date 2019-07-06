@@ -6,5 +6,12 @@
 set -e
 
 cd `dirname "$0"`
-sleep 60
 python Bot_I3Live.py --start $1\ $2 --end $3\ $4 --runid $5 --evtid $6 --output /tmp/$5_$6
+fsize=`stat --printf="%s" /tmp/$5_$6`
+if [ $fsize == 0 ]; then
+    echo "Zero size found"
+    exit 1;
+else
+    exit 0;
+fi
+

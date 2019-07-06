@@ -144,8 +144,19 @@ class Reader:
         cmd = ["ssh", self.cfg["thinlink_user"] + "@" + self.cfg["thinlink_host"],
                os.path.join(self.cfg["thinlink_path"], "./download.sh"), start, stop, run, event]
         print("cmd", cmd)
-        status = subprocess.run(cmd, capture_output=True, check=True)
-        logging.debug(f"status download: {status}")
+        wait_times = [15, 15, 30, 60, 60, 120]
+        for wait_time in wait_times:
+            try:
+                status = subprocess.run(cmd, capture_output=True, check=True)
+            except subprocess.CalledProcessError:
+                if wait_time == wait_times[-1]:
+                    logging.error("Could not thinlink event after retrying")
+                    return
+                logging.info(f"Event file not available yet, sleeping {wait_time}s")
+                sleep(wait_time)
+                continue
+            logging.debug(f"status download: {status}")
+            break
         filename = f"{run}_{event}.csv"
         cmd = ["scp", self.cfg["thinlink_user"] + "@" + self.cfg["thinlink_host"] + f":/tmp/{filename}",
                "./events/"]
@@ -173,7 +184,7 @@ class Reader:
                    "./events/"]
             status = subprocess.run(cmd, capture_output=True, check=True)
             logging.debug(f"status scp screenshot: {status}")
-        except CalledProcessError as subprocexc:
+        except subprocess.CalledProcessError as subprocexc:
             logging.exception(subprocexc)
             has_screenshot = False
 
