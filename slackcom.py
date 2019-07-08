@@ -29,6 +29,7 @@ class Reader:
             logging.error(exc)
             self.conn.rollback()
         self.conn.close()
+        logging.shutdown()
 
     def new_db(self):
         self.cur.execute(
