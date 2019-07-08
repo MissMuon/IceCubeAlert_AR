@@ -9,6 +9,7 @@ from time import sleep
 
 import slack
 from aiohttp.client_exceptions import ClientConnectorError
+
 from firebasemsg import inform_firebase
 
 
@@ -104,6 +105,7 @@ class Reader:
             slack.WebClient(token=os.environ["SLACKTOKEN"]).chat_postMessage(
                 channel=ch,
                 text=f"New preview image for {alert_type} alert. Run / Event: {run} {event}. Check AR app.",
+                as_user=True,
                 attachments=attachments
             )
 
