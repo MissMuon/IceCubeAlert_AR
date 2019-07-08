@@ -103,7 +103,7 @@ class Reader:
                     }]
                 else:
                     logging.error(f"Could not upload file to channel {ch}:", response)
-            slack.WebClient(token=os.environ["SLACKTOKEN"]).chat_postMessage(
+            client.chat_postMessage(
                 channel=ch,
                 text=f"New preview image for {alert_type} alert. Run / Event: {run} {event}. Check AR app.",
                 as_user=True,
