@@ -1,6 +1,6 @@
 # IceCube Alert App with Augmented Reality (AR)
-This contains the code to process data for IceCube realtime alerts.  
-`slackcom`: Sends slack messages, firebase messages and stores events in a database.  
+This contains the code to process data for IceCube realtime alerts.
+`slackcom`: Sends slack messages, firebase messages and stores events in a database.
 `backend`: Provides a REST API for querying events for the android app
 
 ## Installation
@@ -22,11 +22,16 @@ cp configs/test.json.example configs/test.json
 
 ## Running backend
 ```bash
-cd backend 
-gunicorn --name icebearbackend --workers 2 --user=icebear --group=icebear --daemon -w 2 -b 0.0.0.0:5000 backend:app
+cd backend
+gunicorn --name icebearbackend --workers 2 --user=icebear --group=icebear --certfile ../cert.pem --keyfile ../privkey.pem --access-logfile ./access.log --error-logfile ./errors.log --daemon -w 2 -b 0.0.0.0:5000 backend:app
 ```
 
-## Event reader and database 
+### Stopping backend
+```
+pkill gunicorn
+```
+
+## Event reader and database
 ### Start
 ```bash
 python slackcom.py --cfg configs/test.cfg
@@ -40,9 +45,9 @@ python slackcom.py --cfg configs/test.cfg
   ```bash
   sqlite3 ./events.db
   `INSERT INTO events (run, event, event_time, e_nu, alert_type, nickname) VALUES (130033,50579430,"2017-09-22 20:54:30.436",290,"EHE-alert","170922");`
-  ```  
+  ```
 ### How to insert or update a comment for an event
  * The following command overwrites the comment in the database
  ```bash
 python slackcom.py --manualAddComment 132454 6427419 "Here one can write text"
-``` 
+```
