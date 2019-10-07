@@ -1,5 +1,7 @@
 import requests
-from urllib.parse import urljoin
+from urlparse import urlparse
+from urlparse import urljoin
+#from urllib.parse import urljoin #python3
 import re
 import sys
 
