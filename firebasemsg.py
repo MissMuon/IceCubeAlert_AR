@@ -3,24 +3,25 @@ import os
 
 import firebase_admin
 from firebase_admin import messaging
+from event import Event
 
 os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "./configs/icecubear-21644-firebase-adminsdk-cxst8-4b9cf06699.json"
 
 
-def inform_firebase(run: int, event: int, alert_type: str, time, energy: float, topic: str = "/topics/artest"):
+def inform_firebase(event: Event, topic: str = "/topics/artest"):
     app = firebase_admin.initialize_app()
     message = messaging.Message(
         notification=messaging.Notification(
-            title=f'New {alert_type} alert found',
-            body=f'{time} run/event {run}/{event}',
+            title=f'New {event.alert_type} alert found',
+            body=f'{event.time} run/event {event.run}/{event.id}',
         ),
 
         data={
-            'run': str(run),
-            'event': str(event),
-            'name': alert_type,
-            "date": str(time),
-            "energy": str(energy),
+            'run': str(event.run),
+            'event': str(event.id),
+            'name': event.alert_type,
+            "date": str(event.time),
+            "energy": str(event.e_nu),
         },
         topic=topic,
     )
@@ -56,5 +57,7 @@ if __name__ == "__main__":
     if args.notification:
         send_notification(args.title, args.note, args.topic)
     else:
-        inform_firebase(111111, 12, "silver", "2019-01-01 11:11:11", 111.11, topic="/topics/ar")
-        inform_firebase(111111, 13, "silver", "2019-01-01 11:11:11", 111.11, topic="/topics/ar")
+        event1 = Event(run=111111, event_id=12, alert_type="silver", event_time="2019-01-01 11:11:11", e_nu=111.11)
+        event2 = Event(run=111111, event_id=13, alert_type="silver", event_time="2019-01-01 11:11:11", e_nu=111.11)
+        inform_firebase(event1, topic="/topics/ar")
+        inform_firebase(event2, topic="/topics/ar")

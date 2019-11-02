@@ -8,6 +8,7 @@ app = Flask(__name__, static_url_path='')
 
 path_to_db = "../events.db"
 
+
 class Nevents(Resource):
     def get(self):
         conn = sqlite3.connect(path_to_db)
