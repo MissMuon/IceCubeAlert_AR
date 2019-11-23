@@ -10,11 +10,12 @@ from time import sleep
 import slack
 from aiohttp.client_exceptions import ClientConnectorError
 
+from event import Event
 from firebasemsg import inform_firebase
 
 
 class Reader:
-    def __init__(self, cfg):
+    def __init__(self, cfg: str):
         self.conn = sqlite3.connect('events.db', check_same_thread=False)
         self.cur = self.conn.cursor()
 
@@ -38,25 +39,32 @@ class Reader:
                                                   event INTEGER NOT NULL,
                                                   alert_type TEXT,
                                                   event_time DATETIME,
+                                                  signal_prob FLOAT,
+                                                  far FLOAT,
                                                   e_nu FLOAT,
+                                                  e_mu FLOAT,
+                                                  ra FLOAT,
+                                                  dec FLOAT,
+                                                  angle_err_50 FLOAT,
+                                                  angle_err_90 FLOAT,
                                                   nickname TEXT,
                                                   comment TEXT,
                                                   PRIMARY KEY (run,event)
                                                   )''')
         self.conn.commit()
 
-    def insert_event_into_db(self, run, event, alert_type, e_nu, event_time):
-        sql = ''' INSERT INTO events(run, event, alert_type, e_nu, event_time) VALUES(?,?,?,?,?) '''
+    def insert_event_into_db(self, event: Event):
+        sql = f''' INSERT INTO events({event.propsstr()}) VALUES({("?," * len(event.propnames))[:-1]}) '''
         try:
-            self.cur.execute(sql, (run, event, alert_type, e_nu, event_time))
+            self.cur.execute(sql, event.props)
             self.conn.commit()
         except sqlite3.IntegrityError:
-            logging.error(f'(Run, event) already exists: {run}, {event}')
+            logging.error(f'(Run, event) already exists: {event.run}, {event.id}')
             self.conn.rollback()
             raise StopIteration
         except Exception as exc:
             logging.exception(exc)
-            logging.error("DB Insertion error for: ", sql)
+            logging.error(f"DB Insertion error for: {sql}")
             self.conn.rollback()
             raise StopIteration
 
@@ -83,7 +91,7 @@ class Reader:
                 attachments=attachments
             )
 
-    def inform_channel(self, filepath, alert_type, run, event, has_screenshot):
+    def inform_channel(self, filepath: str, event: Event, has_screenshot: bool):
         for ch in self.cfg["send_to_channel"]:
             client = slack.WebClient(token=os.environ['SLACKTOKEN'])
             attachments = []
@@ -95,17 +103,18 @@ class Reader:
                     try:
                         slack_path = response["file"]["url_private"]
                     except KeyError as exc:
-                        logging.error("Cannot find url to image:", response)
+                        logging.error(f"Cannot find url to image: {response}")
                         raise exc
 
                     attachments = [{
                         "image_url": slack_path
                     }]
                 else:
-                    logging.error(f"Could not upload file to channel {ch}:", response)
+                    logging.error(f"Could not upload file to channel {ch}: {response}")
             client.chat_postMessage(
                 channel=ch,
-                text=f"New preview image for {alert_type} alert. Run / Event: {run} {event}. Check AR app.",
+                text=f"New preview image for {event.alert_type} alert. Run / Event: {event.run} {event.id}. "
+                f"Check AR app.",
                 as_user=True,
                 attachments=attachments
             )
@@ -125,27 +134,35 @@ class Reader:
             user = data["username"] if "username" in data else data["user"]
             channel = data["channel"]
             alert_types = [word for word in self.cfg["listen_to_kw"] if word in txt]
+            event = Event()
 
             if "realtimeEvent" in txt and len(alert_types) and \
                     any(word in channel for word in self.cfg["listen_on_channel"]) and \
                     any(word in user for word in self.cfg["listen_to_user"]):
                 logging.info("Found valid alert")
                 fields = data["attachments"][0]["fields"]
-                event_time = fields[0]["value"]
-                run = fields[1]["value"].split("/")[0].strip()
-                event = fields[1]["value"].split("/")[1].strip()
-                e_nu = fields[3]["value"].split("/")[1].strip()
-                alert_type = alert_types[0]  # you can set order in self.cfg but double alerts not expected
-                print("eventtime", event_time)
-                self.process_valid_event(alert_type, e_nu, run, event, event_time)
+                event.time = fields[0]["value"]
+                event.run = fields[1]["value"].split("/")[0].strip()
+                event.id = fields[1]["value"].split("/")[1].strip()
+                event.signal_prob = fields[2]["value"].split("/")[0].strip()
+                event.far = fields[2]["value"].split("/")[1].strip()
+                event.e_mu = fields[3]["value"].split("/")[0].strip()
+                event.e_nu = fields[3]["value"].split("/")[1].strip()
+                event.ra = fields[4]["value"].split("/")[0].strip()
+                event.dec = fields[4]["value"].split("/")[1].strip()
+                event.angle_err_50 = fields[5]["value"].split("/")[0].strip()
+                event.angle_err_90 = fields[5]["value"].split("/")[1].strip()
+                event.alert_type = alert_types[0]  # you can set order in self.cfg but double alerts not expected
+                print("eventtime", event.time)
+                self.process_valid_event(event)
 
-    def process_valid_event(self, alert_type, e_nu, run, event, event_time):
+    def process_valid_event(self, event: Event):
         # get file from south pole
-        event_time_dt = datetime.strptime(event_time, '%Y-%m-%d %H:%M:%S.%f')
+        event_time_dt = datetime.strptime(event.time, '%Y-%m-%d %H:%M:%S.%f')
         start = (event_time_dt + timedelta(seconds=-1)).strftime("%Y-%m-%d %H:%M:%S")
         stop = (event_time_dt + timedelta(seconds=1)).strftime("%Y-%m-%d %H:%M:%S")
         cmd = ["ssh", self.cfg["thinlink_user"] + "@" + self.cfg["thinlink_host"],
-               os.path.join(self.cfg["thinlink_path"], "./download.sh"), start, stop, run, event]
+               os.path.join(self.cfg["thinlink_path"], "./download.sh"), start, stop, event.run, event.id]
         print("cmd", cmd)
         wait_times = [15, 15, 30, 60, 60, 120]
         for wait_time in wait_times:
@@ -160,29 +177,33 @@ class Reader:
                 continue
             logging.debug(f"status download: {status}")
             break
-        filename = f"{run}_{event}.csv"
+        filename = f"{event.run}_{event.id}.csv"
         cmd = ["scp", self.cfg["thinlink_user"] + "@" + self.cfg["thinlink_host"] + f":/tmp/{filename}",
                "./events/"]
-        status = subprocess.run(cmd, capture_output=True, check=True)
-        logging.debug(f"status cp csv: {status}")
+        try:
+            status = subprocess.run(cmd, capture_output=True, check=True)
+            logging.debug(f"status cp csv: {status}")
+        except Exception as e:
+            logging.exception(e)
+            logging.error(f"scp failed: {e}")
 
         # insert to db
-        logging.info(f"Inserting event: {alert_type}, {run}, {event}, {event_time}, {e_nu}")
+        logging.info(f"Inserting event: {str(event)}")
         try:
-            self.insert_event_into_db(run, event, alert_type, e_nu, event_time)
+            self.insert_event_into_db(event)
         except StopIteration:
             logging.warning("Stopping further processing of valid event")
             return
 
         # create preview image
         cmd = ["ssh", self.cfg["thinlink_user"] + "@" + self.cfg["thinlink_host"],
-               os.path.join(self.cfg["thinlink_path"], "./create_screenshot.sh"), run, event]
+               os.path.join(self.cfg["thinlink_path"], "./create_screenshot.sh"), event.run, event.id]
         print("cmd", cmd)
         has_screenshot = True
         try:
             status = subprocess.run(cmd, capture_output=True, check=True)
             logging.debug(f"status create screenshot: {status}")
-            filename = f"{run}_{event}.png"
+            filename = f"{event.run}_{event.id}.png"
             cmd = ["scp", self.cfg["thinlink_user"] + "@" + self.cfg["thinlink_host"] + f":/tmp/{filename}",
                    "./events/"]
             status = subprocess.run(cmd, capture_output=True, check=True)
@@ -193,15 +214,15 @@ class Reader:
 
         # send preview
         try:
-            self.inform_channel(os.path.join("./events", filename), alert_type, run, event, has_screenshot)
+            self.inform_channel(os.path.join("./events", filename), event, has_screenshot)
         except Exception as exc:
-            logging.error("Could not inform channel", type(exc), exc)
+            logging.error(f"Could not inform channel {type(exc)} {exc}")
 
         # send firebase
         try:
-            inform_firebase(run, event, alert_type, event_time, e_nu, topic=self.cfg["firebase_topic"])
+            inform_firebase(event, topic=self.cfg["firebase_topic"])
         except Exception as exc:
-            logging.error("Could not inform firebase", type(exc), exc)
+            logging.error(f"Could not inform firebase {type(exc)} {exc}")
 
     def run(self):
         n_retries = 0
@@ -245,24 +266,24 @@ class Reader:
                 logging.error("Unhandled exception: restarting reader client after 1 sec")
                 sleep(1)
 
-    def remove_event(self, run, event):
+    def remove_event(self, run: int, event_id: int):
         sql = '''DELETE FROM events WHERE run=? AND event=?'''
         try:
-            self.cur.execute(sql, (run, event))
+            self.cur.execute(sql, (run, event_id))
             self.conn.commit()
         except Exception as exc:
             logging.exception(exc)
-            logging.error("DB deletion error for: ", sql)
+            logging.error(f"DB deletion error for: {sql}")
             self.conn.rollback()
 
-    def add_commnt(self, run, event, comment):
+    def add_commnt(self, run: int, event_id: int, comment: str):
         sql = '''UPDATE events SET comment=? WHERE run=? AND event=?'''
         try:
-            self.cur.execute(sql, (comment, run, event))
+            self.cur.execute(sql, (comment, run, event_id))
             self.conn.commit()
         except Exception as exc:
             logging.exception(exc)
-            logging.error("DB comment update error for: ", sql)
+            logging.error(f"DB comment update error for: {sql}")
             self.conn.rollback()
 
 
@@ -274,8 +295,9 @@ if __name__ == "__main__":
     parser.add_argument("--createdb", help="initialise table", action="store_true")
     parser.add_argument("--cfg", help="path to config file", default="./configs/test.json")
     parser.add_argument("--sendfake", help="send a fake msg for testing", action="store_true")
-    parser.add_argument("--manualInsertEvent", help="alert-type e_nu run event event_time "
-                                                    "(e.g. \"gfu-gold\" 32.9 132457 15 \"2019-04-20 01:30:05.162364\")",
+    parser.add_argument("--manualInsertEvent", help=f"{Event.propsstr()} "
+    "(e.g. \"gfu-gold\" 51.348 1.183 133.575 169.994 167.857 17.726 "
+    "0.264 0.679 132465 3856549 \"2019-04-22 05:59:42.071572\")",
                         nargs='+')
     parser.add_argument("--manualDeleteEvent", help="run event (e.g. 132457 15)",
                         nargs='+')
@@ -291,15 +313,23 @@ if __name__ == "__main__":
         reader.cfg["send_to_channel"] = reader.cfg["send_to_channel_fake"]
         reader.send_fake_event()
     elif args.manualInsertEvent:
-        reader.process_valid_event(args.manualInsertEvent[0],
-                                   args.manualInsertEvent[1],
-                                   args.manualInsertEvent[2],
-                                   args.manualInsertEvent[3],
-                                   args.manualInsertEvent[4])
+        event1 = Event(args.manualInsertEvent[0],
+                       args.manualInsertEvent[1],
+                       args.manualInsertEvent[2],
+                       args.manualInsertEvent[3],
+                       args.manualInsertEvent[4],
+                       args.manualInsertEvent[5],
+                       args.manualInsertEvent[6],
+                       args.manualInsertEvent[7],
+                       args.manualInsertEvent[8],
+                       args.manualInsertEvent[9],
+                       args.manualInsertEvent[10],
+                       args.manualInsertEvent[11])
+        reader.process_valid_event(event1)
     elif args.manualDeleteEvent:
-        reader.remove_event(run=args.manualDeleteEvent[0], event=args.manualDeleteEvent[1])
+        reader.remove_event(run=args.manualDeleteEvent[0], event_id=args.manualDeleteEvent[1])
     elif args.manualAddComment:
-        reader.add_commnt(run=args.manualAddComment[0], event=args.manualAddComment[1],
+        reader.add_commnt(run=args.manualAddComment[0], event_id=args.manualAddComment[1],
                           comment=args.manualAddComment[2])
     else:
         reader.run()
