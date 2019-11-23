@@ -8,6 +8,7 @@ app = Flask(__name__, static_url_path='')
 
 path_to_db = "../events.db"
 
+
 class Nevents(Resource):
     def get(self):
         conn = sqlite3.connect(path_to_db)
@@ -22,7 +23,8 @@ class LastEvents(Resource):
     def get(self, nevents):
         conn = sqlite3.connect(path_to_db)
         cur = conn.cursor()
-        cur.execute("SELECT run, event, alert_type, e_nu, event_time, nickname "
+        cur.execute("SELECT run, event, alert_type, e_nu, event_time, nickname, comment,"
+                    "ra, dec, angle_err_50, angle_err_90 "
                     "FROM events ORDER BY run DESC, event DESC LIMIT ?", [nevents])
         events = cur.fetchall()
         print(events)
@@ -33,7 +35,8 @@ class LastEventsBeforeId(Resource):
     def get(self, nevents, run, event):
         conn = sqlite3.connect(path_to_db)
         cur = conn.cursor()
-        cur.execute("SELECT run, event, alert_type, e_nu, event_time, nickname "
+        cur.execute("SELECT run, event, alert_type, e_nu, event_time, nickname, comment,"
+                    "ra, dec, angle_err_50, angle_err_90 "
                     "FROM events WHERE run < :run OR (run = :run AND event < :event) "
                     "ORDER BY run DESC, event DESC "
                     "LIMIT :nevents",
