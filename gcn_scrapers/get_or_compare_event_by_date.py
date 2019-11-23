@@ -4,6 +4,8 @@ import os
 from os.path import exists
 import sys
 import re
+#reload(sys)                                                                                                                                                                                                         
+#sys.setdefaultencoding('utf8')                                                                                                                                                                                    
 
 if len(sys.argv)<2:
  print("Usage: {} datetime <maybefilterhere>".format(sys.argv[0]))
