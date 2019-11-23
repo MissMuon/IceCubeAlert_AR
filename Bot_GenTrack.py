@@ -1,6 +1,7 @@
-from icecube import dataclasses
+from icecube import dataclasses, dataio, astro
 import pandas as pd
 import collections
+from optparse import OptionParser
 
 def flatten(d, parent_key='', sep='_'):
     items = []
@@ -13,7 +14,8 @@ def flatten(d, parent_key='', sep='_'):
     return dict(items)
 
 
-def gen_appendix(frame,outcsv,inputparticle = "OnlineL2_SplineMPE", jsonfile="AlertShortFollowupMsg",eventheader="I3EventHeader"):
+def gen_appendix(frame, outcsv, inputparticle="OnlineL2_SplineMPE",
+                 jsonfile="AlertShortFollowupMsg", eventheader="I3EventHeader"):
     mpe = frame[inputparticle]
     header = frame[eventheader]
     info = frame[jsonfile]
@@ -24,8 +26,32 @@ def gen_appendix(frame,outcsv,inputparticle = "OnlineL2_SplineMPE", jsonfile="Al
     ra_rad, dec_rad = astro.dir_to_equa(zen_rad, azi_rad, time_mjd)
     temp = flatten(eval(message.replace("null","None")))
     df = pd.DataFrame(temp, index=[temp["event_id"]])
-    #send to VM                                                                                                                                                                                                    
-    df_out = pd.DataFrame(data={"evtid":df.event_id.values[0],"mjd":time_mjd,"rec_x":mpe.pos.x,"rec_y":mpe.pos.y,"rec_z":mpe.pos.z,"rec_t0":mpe.time,"zen_rad":zen_rad,"azi_rad":azi_rad, "ra_rad":ra_rad, "dec_rad":dec_rad},index=df.run_id)
-    df_out.to_csv(outcsv,header=False)
+
+    df_out = pd.DataFrame(data={"evtid":df.event_id.values[0],
+                                "mjd":time_mjd,
+                                "rec_x":mpe.pos.x,
+                                "rec_y":mpe.pos.y,
+                                "rec_z":mpe.pos.z,
+                                "rec_t0":mpe.time,
+                                "zen_rad":zen_rad,
+                                "azi_rad":azi_rad,
+                                "ra_rad":ra_rad,
+                                "dec_rad":dec_rad},
+                          index=df.run_id)
+    df_out.to_csv(outcsv, header=False)
     #return df_out
 
+parser = OptionParser()
+parser.add_option("-r", "--runid", action="store",
+                  type="int", default="132695", dest="runid",
+                  help="runid")
+parser.add_option("-i", "--evtid", action="store",
+                  type="int", default="7617791", dest="evtid",
+                  help="eventid")
+
+options, args = parser.parse_args()
+
+f = dataio.I3File("/tmp/{}_{}".format(options.runid, options.evtid))
+frame = f.pop_physics()
+outFilename = "/tmp/{}_{}_track.csv".format(options.runid, options.evtid)
+gen_appendix(frame, outFilename)
