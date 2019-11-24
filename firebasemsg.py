@@ -51,7 +51,7 @@ if __name__ == "__main__":
     parser.add_argument("--notification", help="send a notification to users", action="store_true")
     parser.add_argument("--title", help="title to send if --notification")
     parser.add_argument("--note", help="text to send if --notification")
-    parser.add_argument("--topic", help="topic to send to if --notification", default="/topics/artest")
+    parser.add_argument("--topic", help="topic to send to if --notification", default="/topics/ar_test")
     args = parser.parse_args()
 
     if args.notification:
@@ -59,5 +59,5 @@ if __name__ == "__main__":
     else:
         event1 = Event(run=111111, event_id=12, alert_type="silver", event_time="2019-01-01 11:11:11", e_nu=111.11)
         event2 = Event(run=111111, event_id=13, alert_type="silver", event_time="2019-01-01 11:11:11", e_nu=111.11)
-        inform_firebase(event1, topic="/topics/ar")
-        inform_firebase(event2, topic="/topics/ar")
+        inform_firebase(event1, topic="/topics/ar_test")
+        inform_firebase(event2, topic="/topics/ar_test")
