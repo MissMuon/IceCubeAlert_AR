@@ -1,4 +1,5 @@
 import argparse
+import csv
 import json
 import logging
 import os
@@ -49,12 +50,22 @@ class Reader:
                                                   angle_err_90 FLOAT,
                                                   nickname TEXT,
                                                   comment TEXT,
+                                                  mjd FLOAT,
+                                                  rec_x FLOAT,
+                                                  rec_y FLOAT,
+                                                  rec_z FLOAT,
+                                                  rec_t0 FLOAT,
+                                                  zen_rad FLOAT,
+                                                  azi_rad FLOAT,
+                                                  ra_rad FLOAT,
+                                                  dec_rad FLOAT,
                                                   PRIMARY KEY (run,event)
                                                   )''')
         self.conn.commit()
 
     def insert_event_into_db(self, event: Event):
         sql = f''' INSERT INTO events({event.propsstr()}) VALUES({("?," * len(event.propnames))[:-1]}) '''
+        print(sql)
         try:
             self.cur.execute(sql, event.props)
             self.conn.commit()
@@ -88,7 +99,9 @@ class Reader:
             slack.WebClient(token=os.environ["SLACKTOKEN"]).chat_postMessage(
                 channel=ch,
                 text=text,
-                attachments=attachments
+                as_user=True,
+                attachments=attachments,
+                charset="utf-8"
             )
 
     def inform_channel(self, filepath: str, event: Event, has_screenshot: bool):
@@ -187,14 +200,6 @@ class Reader:
             logging.exception(e)
             logging.error(f"scp failed: {e}")
 
-        # insert to db
-        logging.info(f"Inserting event: {str(event)}")
-        try:
-            self.insert_event_into_db(event)
-        except StopIteration:
-            logging.warning("Stopping further processing of valid event")
-            return
-
         # create preview image
         cmd = ["ssh", self.cfg["thinlink_user"] + "@" + self.cfg["thinlink_host"],
                os.path.join(self.cfg["thinlink_path"], "./create_screenshot.sh"), event.run, event.id]
@@ -217,6 +222,44 @@ class Reader:
             self.inform_channel(os.path.join("./events", filename), event, has_screenshot)
         except Exception as exc:
             logging.error(f"Could not inform channel {type(exc)} {exc}")
+
+        # create track data
+        cmd = ["ssh", self.cfg["thinlink_user"] + "@" + self.cfg["thinlink_host"],
+               os.path.join(self.cfg["thinlink_path"], "./gentrack.sh"), event.run, event.id]
+        print("cmd", cmd)
+        try:
+            status = subprocess.run(cmd, capture_output=True, check=True)
+            logging.debug(f"status create track data: {status}")
+            filename = f"{event.run}_{event.id}_track.csv"
+            cmd = ["scp", self.cfg["thinlink_user"] + "@" + self.cfg["thinlink_host"] + f":/tmp/{filename}",
+                   "./events/"]
+            status = subprocess.run(cmd, capture_output=True, check=True)
+            logging.debug(f"status scp gentrack: {status}")
+            with open("./events/"+filename) as csv_file:
+                csv_reader = csv.reader(csv_file, delimiter=',')
+                row = list(csv_reader)[0]
+                # evtid = row[0]
+                mjd = row[1]
+                rec_x = row[2]
+                rec_y = row[3]
+                rec_z = row[4]
+                rec_t0 = row[5]
+                zen_rad = row[6]
+                azi_rad = row[7]
+                ra_rad = row[8]
+                dec_rad = row[9]
+            event.set_track_info(mjd, rec_x, rec_y, rec_z, rec_t0, zen_rad, azi_rad, ra_rad, dec_rad)
+
+        except subprocess.CalledProcessError as subprocexc:
+            logging.exception(subprocexc)
+
+        # insert to db
+        logging.info(f"Inserting event: {str(event)}")
+        try:
+            self.insert_event_into_db(event)
+        except StopIteration:
+            logging.warning("Stopping further processing of valid event")
+            return
 
         # send firebase
         try:
