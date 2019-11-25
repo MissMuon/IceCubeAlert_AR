@@ -175,7 +175,7 @@ class Reader:
         start = (event_time_dt + timedelta(seconds=-1)).strftime("%Y-%m-%d %H:%M:%S")
         stop = (event_time_dt + timedelta(seconds=1)).strftime("%Y-%m-%d %H:%M:%S")
         cmd = ["ssh", self.cfg["thinlink_user"] + "@" + self.cfg["thinlink_host"],
-               os.path.join(self.cfg["thinlink_path"], "./download.sh"), start, stop, event.run, event.id]
+               os.path.join(self.cfg["thinlink_path"], "./download.sh"), start, stop, str(event.run), str(event.id)]
         print("cmd", cmd)
         wait_times = [15, 15, 30, 60, 60, 120]
         for wait_time in wait_times:
@@ -202,7 +202,7 @@ class Reader:
 
         # create preview image
         cmd = ["ssh", self.cfg["thinlink_user"] + "@" + self.cfg["thinlink_host"],
-               os.path.join(self.cfg["thinlink_path"], "./create_screenshot.sh"), event.run, event.id]
+               os.path.join(self.cfg["thinlink_path"], "./create_screenshot.sh"), str(event.run), str(event.id)]
         print("cmd", cmd)
         has_screenshot = True
         try:
@@ -225,7 +225,7 @@ class Reader:
 
         # create track data
         cmd = ["ssh", self.cfg["thinlink_user"] + "@" + self.cfg["thinlink_host"],
-               os.path.join(self.cfg["thinlink_path"], "./gentrack.sh"), event.run, event.id]
+               os.path.join(self.cfg["thinlink_path"], "./gentrack.sh"), str(event.run), str(event.id)]
         print("cmd", cmd)
         try:
             status = subprocess.run(cmd, capture_output=True, check=True)
