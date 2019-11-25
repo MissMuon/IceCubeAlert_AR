@@ -5,8 +5,12 @@ import os
 import subprocess
 import sqlite3
 import logging
+from datetime import datetime, timedelta
+from time import sleep
 
 from event import Event
+import sys
+sys.path.append(".")
 
 class Reader:
     def __init__(self, cfg: str):
@@ -27,6 +31,36 @@ class Reader:
         logging.shutdown()
 
     def process_event(self, event: Event):
+        # get file
+        event_time_dt = datetime.strptime(event.time, '%Y-%m-%d %H:%M:%S.%f')
+        start = (event_time_dt + timedelta(seconds=-1)).strftime("%Y-%m-%d %H:%M:%S")
+        stop = (event_time_dt + timedelta(seconds=1)).strftime("%Y-%m-%d %H:%M:%S")
+        cmd = ["ssh", self.cfg["thinlink_user"] + "@" + self.cfg["thinlink_host"],
+               os.path.join(self.cfg["thinlink_path"], "./download.sh"), start, stop, event.run, event.id]
+        print("cmd", cmd)
+        wait_times = [15, 15, 30, 60, 60, 120]
+        for wait_time in wait_times:
+            try:
+                status = subprocess.run(cmd, capture_output=True, check=True)
+            except subprocess.CalledProcessError:
+                if wait_time == wait_times[-1]:
+                    logging.error("Could not thinlink event after retrying")
+                    return
+                logging.info(f"Event file not available yet, sleeping {wait_time}s")
+                sleep(wait_time)
+                continue
+            logging.debug(f"status download: {status}")
+            break
+        filename = f"{event.run}_{event.id}.csv"
+        cmd = ["scp", self.cfg["thinlink_user"] + "@" + self.cfg["thinlink_host"] + f":/tmp/{filename}",
+               "./events/"]
+        try:
+            status = subprocess.run(cmd, capture_output=True, check=True)
+            logging.debug(f"status cp csv: {status}")
+        except Exception as e:
+            logging.exception(e)
+            logging.error(f"scp failed: {e}")
+
         # create track data
         cmd = ["ssh", self.cfg["thinlink_user"] + "@" + self.cfg["thinlink_host"],
                os.path.join(self.cfg["thinlink_path"], "./gentrack.sh"), str(event.run), str(event.id)]
@@ -60,14 +94,16 @@ class Reader:
 
     def update_event_in_db(self, event: Event):
         sql = f''' UPDATE events SET mjd = ?, rec_x = ?, rec_y = ?, rec_z = ?, rec_t0 = ?, zen_rad = ?, azi_rad = ?,
-                                     ra_rad = ?, dec_rad = ?
-                                 WHERE run = ? and event = ?
+                   ra_rad = ?, dec_rad = ?
+                   WHERE run = ? and event = ?
                '''
         print(sql)
         try:
             self.cur.execute(sql, [event.mjd, event.rec_x, event.rec_y, event.rec_z, event.rec_t0, event.zen_rad,
                                    event.azi_rad, event.ra_rad, event.dec_rad, event.run, event.id])
             self.conn.commit()
+            print(f"Updated event {event.run}/{event.id}")
+
         except sqlite3.IntegrityError:
             logging.error(f'(Run, event) already exists: {event.run}, {event.id}')
             self.conn.rollback()
@@ -79,10 +115,10 @@ class Reader:
             raise StopIteration
 
     def process_all_events(self):
-        self.cur.execute("SELECT run, event FROM events ORDER BY run DESC, event DESC")
+        self.cur.execute("SELECT run, event, event_time FROM events ORDER BY run DESC, event DESC")
         data = self.cur.fetchall()
         for datum in data:
-            event = Event(run=datum[0], event_id=datum[1])
+            event = Event(run=datum[0], event_id=datum[1], event_time=datum[2])
             self.process_event(event)
 
 
