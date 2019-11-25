@@ -30,7 +30,7 @@ class LastEvents(Resource):
         print(events)
         return {'events': events}
 
-class LastEventsV2(Resource):
+class LastEventsWithTracks(Resource):
     def get(self, nevents):
         conn = sqlite3.connect(path_to_db)
         conn.row_factory = sqlite3.Row
@@ -39,8 +39,17 @@ class LastEventsV2(Resource):
                     "ra, dec, angle_err_50, angle_err_90,"
                     "mjd, rec_x, rec_y, rec_z, rec_t0, zen_rad, azi_rad, ra_rad, dec_rad "
                     "FROM events ORDER BY run DESC, event DESC LIMIT ?", [nevents])
-        events = cur.fetchall()
-        events = [dict(ev) for ev in events]
+        data = cur.fetchall()
+        events = []
+        for ev in data:
+            ev = dict(ev)
+            track = None
+            subset = ["mjd", "rec_x", "rec_y", "rec_z", "rec_t0", "zen_rad", "azi_rad", "ra_rad", "dec_rad"]
+            if ev["mjd"]:
+                track = {key: ev[key] for key in subset}  # k guaranteed to be in ev
+            for key in subset:
+                del ev[key]
+            events.append({**ev, "track": track})
         return {'events': events}
 
 
@@ -58,7 +67,7 @@ class LastEventsBeforeId(Resource):
         print(events)
         return {'events': events}
 
-class LastEventsBeforeIdV2(Resource):
+class LastEventsBeforeIdWithTracks(Resource):
     def get(self, nevents, run, event):
         conn = sqlite3.connect(path_to_db)
         conn.row_factory = sqlite3.Row
@@ -70,8 +79,18 @@ class LastEventsBeforeIdV2(Resource):
                     "ORDER BY run DESC, event DESC "
                     "LIMIT :nevents",
                     {"run": run, "event": event, "nevents": nevents})
-        events = cur.fetchall()
-        events = [dict(ev) for ev in events]
+        data = cur.fetchall()
+        events = []
+        for ev in data:
+            ev = dict(ev)
+            track = None
+            subset = ["mjd", "rec_x", "rec_y", "rec_z", "rec_t0", "zen_rad", "azi_rad", "ra_rad", "dec_rad"]
+            if ev["mjd"]:
+                track = {key: ev[key] for key in subset}  # k guaranteed to be in ev
+            for key in subset:
+                del ev[key]
+            events.append({**ev, "track": track})
+
         return {'events': events}
 
 
@@ -98,9 +117,9 @@ def send_file(run, event):
 api = Api(app)
 api.add_resource(Nevents, '/nevents')
 api.add_resource(LastEvents, '/lastevents/<int:nevents>')
-api.add_resource(LastEventsV2, '/lasteventsv2/<int:nevents>')
+api.add_resource(LastEventsWithTracks, '/lasteventswithtracks/<int:nevents>')
 api.add_resource(LastEventsBeforeId, '/lasteventsbeforeid/<int:nevents>/<int:run>/<int:event>')
-api.add_resource(LastEventsBeforeIdV2, '/lasteventsbeforeidv2/<int:nevents>/<int:run>/<int:event>')
+api.add_resource(LastEventsBeforeIdWithTracks, '/lasteventsbeforeidwithtracks/<int:nevents>/<int:run>/<int:event>')
 api.add_resource(Comment, '/comment/<int:run>/<int:event>')
 
 
