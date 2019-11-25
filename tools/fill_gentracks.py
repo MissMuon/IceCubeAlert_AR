@@ -1,16 +1,18 @@
 import argparse
 import csv
 import json
-import os
-import subprocess
-import sqlite3
 import logging
+import os
+import sqlite3
+import subprocess
+import sys
 from datetime import datetime, timedelta
 from time import sleep
 
-from event import Event
-import sys
 sys.path.append(".")
+
+from event import Event
+
 
 class Reader:
     def __init__(self, cfg: str):
@@ -73,7 +75,7 @@ class Reader:
                    "./events/"]
             status = subprocess.run(cmd, capture_output=True, check=True)
             logging.debug(f"status scp gentrack: {status}")
-            with open("./events/"+filename) as csv_file:
+            with open("./events/" + filename) as csv_file:
                 csv_reader = csv.reader(csv_file, delimiter=',')
                 row = list(csv_reader)[0]
                 # evtid = row[0]
