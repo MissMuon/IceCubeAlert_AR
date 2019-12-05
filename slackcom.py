@@ -163,8 +163,8 @@ class Reader:
                 event.e_nu = fields[3]["value"].split("/")[1].strip()
                 event.ra = fields[4]["value"].split("/")[0].strip()
                 event.dec = fields[4]["value"].split("/")[1].strip()
-                event.angle_err_50 = fields[5]["value"].split("/")[0].strip()
-                event.angle_err_90 = fields[5]["value"].split("/")[1].strip()
+                event.angle_err_50 = fields[5]["value"].split(" ")[0].strip()
+                event.angle_err_90 = fields[5]["value"].split(" ")[1].strip().rstrip(")").lstrip("(")
                 event.alert_type = alert_types[0]  # you can set order in self.cfg but double alerts not expected
                 print("eventtime", event.time)
                 self.process_valid_event(event)
