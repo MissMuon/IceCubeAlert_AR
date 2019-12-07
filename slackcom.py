@@ -35,7 +35,7 @@ class Reader:
 
     def new_db(self):
         self.cur.execute(
-            '''CREATE TABLE if not exists events (timestamp DATETIME DEFAULT CURRENT_TIMESTAMP, 
+            '''CREATE TABLE if not exists events (timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
                                                   run INTEGER NOT NULL,
                                                   event INTEGER NOT NULL,
                                                   alert_type TEXT,
@@ -238,16 +238,16 @@ class Reader:
             with open("./events/"+filename) as csv_file:
                 csv_reader = csv.reader(csv_file, delimiter=',')
                 row = list(csv_reader)[0]
-                # evtid = row[0]
-                mjd = row[1]
-                rec_x = row[2]
-                rec_y = row[3]
-                rec_z = row[4]
-                rec_t0 = row[5]
-                zen_rad = row[6]
-                azi_rad = row[7]
-                ra_rad = row[8]
-                dec_rad = row[9]
+                # order: 0 run_id, 1 azi_rad, 2 dec_rad, 3 evtid, 4 mjd, 5 ra_rad, 6 rec_t0, 7 rec_x, 8 rec_y, 9 rec_z, 10 zen_rad
+                azi_rad = row[1]
+                dec_rad = row[2]
+                mjd = row[4]
+                ra_rad = row[5]
+                rec_t0 = row[6]
+                rec_x = row[7]
+                rec_y = row[8]
+                rec_z = row[9]
+                zen_rad = row[10]
             event.set_track_info(mjd, rec_x, rec_y, rec_z, rec_t0, zen_rad, azi_rad, ra_rad, dec_rad)
 
         except subprocess.CalledProcessError as subprocexc:

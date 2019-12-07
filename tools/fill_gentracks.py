@@ -38,7 +38,7 @@ class Reader:
         start = (event_time_dt + timedelta(seconds=-1)).strftime("%Y-%m-%d %H:%M:%S")
         stop = (event_time_dt + timedelta(seconds=1)).strftime("%Y-%m-%d %H:%M:%S")
         cmd = ["ssh", self.cfg["thinlink_user"] + "@" + self.cfg["thinlink_host"],
-               os.path.join(self.cfg["thinlink_path"], "./download.sh"), start, stop, event.run, event.id]
+               os.path.join(self.cfg["thinlink_path"], "./download.sh"), start, stop, str(event.run), str(event.id)]
         print("cmd", cmd)
         wait_times = [15, 15, 30, 60, 60, 120]
         for wait_time in wait_times:
@@ -78,16 +78,16 @@ class Reader:
             with open("./events/" + filename) as csv_file:
                 csv_reader = csv.reader(csv_file, delimiter=',')
                 row = list(csv_reader)[0]
-                # evtid = row[0]
-                mjd = row[1]
-                rec_x = row[2]
-                rec_y = row[3]
-                rec_z = row[4]
-                rec_t0 = row[5]
-                zen_rad = row[6]
-                azi_rad = row[7]
-                ra_rad = row[8]
-                dec_rad = row[9]
+                # order: 0 run_id, 1 azi_rad, 2 dec_rad, 3 evtid, 4 mjd, 5 ra_rad, 6 rec_t0, 7 rec_x, 8 rec_y, 9 rec_z, 10 zen_rad
+                azi_rad = row[1]
+                dec_rad = row[2]
+                mjd = row[4]
+                ra_rad = row[5]
+                rec_t0 = row[6]
+                rec_x = row[7]
+                rec_y = row[8]
+                rec_z = row[9]
+                zen_rad = row[10]
             event.set_track_info(mjd, rec_x, rec_y, rec_z, rec_t0, zen_rad, azi_rad, ra_rad, dec_rad)
             self.update_event_in_db(event)
 
